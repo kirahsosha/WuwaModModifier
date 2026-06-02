@@ -78,6 +78,7 @@ namespace WuwaModModifier.ViewModels
             _visibilityDiffItems = new ObservableCollection<VersionSyncVisibilityDiffItem>();
 
             RefreshPairingsCommand = new RelayCommand(ExecuteRefreshPairings, CanRefreshPairings);
+            RefreshCurrentPairingsCommand = new RelayCommand(ExecuteRefreshCurrentPairings, CanRefreshCurrentPairings);
             ApplySelectedJobCommand = new RelayCommand(ExecuteApplySelectedJob, CanApplySelectedJob);
             ApplyAllJobsCommand = new RelayCommand(ExecuteApplyAllJobs, CanApplyAllJobs);
             DeleteSelectedPairingCommand = new RelayCommand(ExecuteDeleteSelectedPairing, CanDeleteSelectedPairing);
@@ -126,7 +127,7 @@ namespace WuwaModModifier.ViewModels
         }
 
         public string CandidateSummaryText =>
-            $"候选目录 {_candidateCount} 个，自动配对作业 {PairingJobs.Count} / {_allPairingJobs.Count} 个。";
+            $"候选目录 {_candidateCount} 个，自动配对 {PairingJobs.Count} / {_allPairingJobs.Count} 个。";
 
         public VersionSyncJobFilterMode SelectedJobFilterMode
         {
@@ -262,6 +263,8 @@ namespace WuwaModModifier.ViewModels
 
         public ICommand RefreshPairingsCommand { get; }
 
+        public ICommand RefreshCurrentPairingsCommand { get; }
+
         public ICommand ApplySelectedJobCommand { get; }
 
         public ICommand ApplyAllJobsCommand { get; }
@@ -273,6 +276,11 @@ namespace WuwaModModifier.ViewModels
         private bool CanRefreshPairings()
         {
             return DirectoryExists(ImportedModDirectoryPath);
+        }
+
+        private bool CanRefreshCurrentPairings()
+        {
+            return _allPairingJobs.Count > 0;
         }
 
         private bool CanApplySelectedJob()
@@ -327,6 +335,34 @@ namespace WuwaModModifier.ViewModels
             {
                 ClearComparison();
                 StatusText = "生成版本同步作业失败。";
+                _messages.ShowError(ex.Message, "版本同步");
+            }
+        }
+
+        private void ExecuteRefreshCurrentPairings()
+        {
+            if (_allPairingJobs.Count == 0)
+            {
+                StatusText = "当前没有可刷新的配对作业。";
+                return;
+            }
+
+            try
+            {
+                var currentJobs = _allPairingJobs
+                    .Select(item => item.Job)
+                    .ToList();
+                var previewFailureCount = RebuildPairingJobSummaries(
+                    currentJobs,
+                    SelectedPairingJob?.OutputConfigPath);
+
+                StatusText = previewFailureCount == 0
+                    ? $"已刷新当前 {_allPairingJobs.Count} 个配对的分析结果。"
+                    : $"已刷新当前 {_allPairingJobs.Count} 个配对的分析结果，其中 {previewFailureCount} 个预览失败。";
+            }
+            catch (Exception ex)
+            {
+                StatusText = "刷新当前配对分析失败。";
                 _messages.ShowError(ex.Message, "版本同步");
             }
         }
@@ -652,6 +688,7 @@ namespace WuwaModModifier.ViewModels
             }
 
             ApplyPairingJobFilter(preferredSelectedOutputPath);
+            CommandManager.InvalidateRequerySuggested();
             return previewFailureCount;
         }
 

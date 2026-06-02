@@ -109,7 +109,7 @@
             <Setter Property="MinHeight"
                     Value="32"/>
             <Setter Property="MinWidth"
-                    Value="96"/>
+                    Value="80"/>
             <Setter Property="FontWeight"
                     Value="SemiBold"/>
             <Setter Property="Cursor"
@@ -137,6 +137,10 @@
             <Setter Property="Foreground"
                     Value="White"/>
         </Style>
+
+        <Style x:Key="SecondaryButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource BaseButtonStyle}"/>
 
         <Style TargetType="TextBox">
             <Setter Property="Foreground"
@@ -260,9 +264,9 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="1.65*"/>
+                                <ColumnDefinition Width="446"/>
                 <ColumnDefinition Width="10"/>
-                <ColumnDefinition Width="4.15*"/>
+                <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
             <Border Grid.Column="0"
@@ -280,11 +284,15 @@
 
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"
+                                              MinWidth="140"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="80"/>
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel>
+                        <StackPanel Margin="0,0,12,0">
                             <TextBlock Text="自动配对作业"
                                        Style="{StaticResource SectionTitleStyle}"/>
                             <TextBlock Margin="0,4,0,0"
@@ -292,21 +300,24 @@
                                        Style="{StaticResource CaptionStyle}"/>
                         </StackPanel>
 
-                        <Button Grid.Column="1"
-                                Margin="12,0,0,0"
+                        <Button Grid.Column="2"
                                 Content="手动配对"
                                 IsEnabled="{Binding CanOpenManualPairing}"
                                 Click="btnAddManualPairing_Click"
                                 Style="{StaticResource PrimaryButtonStyle}"/>
+                        <Button Grid.Column="4"
+                                Content="刷新配对"
+                                Command="{Binding RefreshCurrentPairingsCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}"/>
                     </Grid>
 
                     <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="148"/>
+                            <ColumnDefinition Width="150"/>
                             <ColumnDefinition Width="12"/>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="168"/>
+                            <ColumnDefinition Width="150"/>
                         </Grid.ColumnDefinitions>
 
                         <TextBlock VerticalAlignment="Center"
@@ -332,7 +343,7 @@
                                   Margin="8,0,0,0"
                                   SelectedValue="{Binding SelectedBatchApplyMode}"
                                   SelectedValuePath="Tag">
-                            <ComboBoxItem Content="应用当前筛选结果中的全部差异项"
+                            <ComboBoxItem Content="应用全部差异项"
                                           Tag="{x:Static vm:VersionSyncBatchApplyMode.AllVisibleJobs}"/>
                             <ComboBoxItem Content="只应用可自动项"
                                           Tag="{x:Static vm:VersionSyncBatchApplyMode.AutoApplicableOnly}"/>
