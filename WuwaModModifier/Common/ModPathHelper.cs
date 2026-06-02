@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Text.RegularExpressions;
 
 namespace WuwaModModifier.Common
@@ -20,11 +22,26 @@ namespace WuwaModModifier.Common
             new Regex(@"^\[(?<id>[^\]]+)\](?<name>.+)$", RegexOptions.Compiled);
 
         // 示例：
-        // WWMI 目录下文件夹：E:\...\[Encore][12345]MyMod
+        // WWMI 目录下文件夹名：[Encore][12345]MyMod
         // character = Encore, id = 12345, name = MyMod
-        private static readonly Regex WwmiFolderPathRegex =
-            new Regex(@".*\\\[(?<character>[^\]]+)\]\[(?<id>[^\]]+)\](?<name>.+)$",
+        private static readonly Regex WwmiFolderNameRegex =
+            new Regex(@"^\[(?<character>[^\]]+)\]\[(?<id>[^\]]+)\](?<name>.+)$",
                 RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex WhitespaceOrHyphenRegex =
+            new Regex(@"[\s\-]+", RegexOptions.Compiled);
+
+        private static readonly Regex DuplicateUnderscoreRegex =
+            new Regex(@"_+", RegexOptions.Compiled);
+
+        private static readonly Regex TrailingVersionSuffixRegex =
+            new Regex(@"(?:_v\d+)+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex TrailingVerSuffixRegex =
+            new Regex(@"(?:_ver\d+)+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex TrailingHashSuffixRegex =
+            new Regex(@"(?:_[0-9a-f]{5,})+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         /// <summary>
         /// 从角色目录路径中获取角色名
@@ -56,6 +73,77 @@ namespace WuwaModModifier.Common
         }
 
         /// <summary>
+        /// 从 MOD 目录完整路径中解析角色名、id 和 modName。
+        /// 例如：E:\Mods\13 Rover\[589362] rover_bikini_warrior_a9e13
+        /// </summary>
+        public static bool TryParseModDirectoryPath(
+            string folderPath,
+            out string characterName,
+            out string id,
+            out string modName)
+        {
+            characterName = string.Empty;
+            id = string.Empty;
+            modName = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(folderPath))
+            {
+                return false;
+            }
+
+            var normalizedPath = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var folderName = Path.GetFileName(normalizedPath);
+            var parentDirectory = Path.GetDirectoryName(normalizedPath);
+            var parsedCharacterName = GetCharacterNameFromFolder(parentDirectory ?? string.Empty);
+            var (parsedId, parsedModName) = ParseModFolderName(folderName);
+
+            if (string.IsNullOrWhiteSpace(parsedCharacterName) ||
+                string.IsNullOrWhiteSpace(parsedId) ||
+                string.IsNullOrWhiteSpace(parsedModName))
+            {
+                return false;
+            }
+
+            characterName = parsedCharacterName;
+            id = parsedId;
+            modName = parsedModName.Trim();
+            return true;
+        }
+
+        /// <summary>
+        /// 生成版本同步配对时使用的语义键。
+        /// 规则：统一大小写与分隔符，去掉末尾 hash / v1-vN / ver123 等版本噪音。
+        /// </summary>
+        public static string NormalizeVersionSyncKey(string modName)
+        {
+            if (string.IsNullOrWhiteSpace(modName))
+            {
+                return string.Empty;
+            }
+
+            var normalized = modName.Trim().ToLowerInvariant();
+            normalized = WhitespaceOrHyphenRegex.Replace(normalized, "_");
+            normalized = DuplicateUnderscoreRegex.Replace(normalized, "_").Trim('_');
+
+            while (!string.IsNullOrWhiteSpace(normalized))
+            {
+                var updated = TrailingVersionSuffixRegex.Replace(normalized, string.Empty);
+                updated = TrailingVerSuffixRegex.Replace(updated, string.Empty);
+                updated = TrailingHashSuffixRegex.Replace(updated, string.Empty);
+                updated = updated.Trim('_');
+
+                if (updated.Equals(normalized, StringComparison.Ordinal))
+                {
+                    break;
+                }
+
+                normalized = updated;
+            }
+
+            return normalized;
+        }
+
+        /// <summary>
         /// 从 WWMI 中的 MOD 完整路径解析角色名、id、modName
         /// 例如：E:\...\[Encore][123]MyMod
         /// </summary>
@@ -64,7 +152,41 @@ namespace WuwaModModifier.Common
             if (string.IsNullOrWhiteSpace(folderPath))
                 return (string.Empty, string.Empty, string.Empty);
 
-            var match = WwmiFolderPathRegex.Match(folderPath);
+            var currentPath = folderPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            while (!string.IsNullOrWhiteSpace(currentPath))
+            {
+                var folderName = Path.GetFileName(currentPath);
+                var parsed = ParseWwmiFolderName(folderName);
+                if (!string.IsNullOrWhiteSpace(parsed.CharacterName) &&
+                    !string.IsNullOrWhiteSpace(parsed.Id) &&
+                    !string.IsNullOrWhiteSpace(parsed.ModName))
+                {
+                    return parsed;
+                }
+
+                var parentPath = Path.GetDirectoryName(currentPath);
+                if (string.IsNullOrWhiteSpace(parentPath) ||
+                    parentPath.Equals(currentPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                currentPath = parentPath;
+            }
+
+            return (string.Empty, string.Empty, string.Empty);
+        }
+
+        /// <summary>
+        /// 从 WWMI 中的 MOD 目录名解析角色名、id、modName
+        /// 例如：[Encore][123]MyMod
+        /// </summary>
+        public static (string CharacterName, string Id, string ModName) ParseWwmiFolderName(string folderName)
+        {
+            if (string.IsNullOrWhiteSpace(folderName))
+                return (string.Empty, string.Empty, string.Empty);
+
+            var match = WwmiFolderNameRegex.Match(folderName);
             if (!match.Success)
                 return (string.Empty, string.Empty, string.Empty);
 
