@@ -175,6 +175,85 @@ namespace UnitTests
         }
 
         [Fact]
+        public void BuildSynchronizedState_ShouldUseDenseOrdinalsForResultVisibleDifferences()
+        {
+            var synchronizedState = TextDiffHighlighter.BuildSynchronizedState(
+                "same\nold-only-before\nold-a\nmiddle\nold-b",
+                "same\nnew-a\nmiddle\nnew-b",
+                "same\nresult-a\nmiddle\nresult-b");
+
+            Assert.Equal(2, synchronizedState.TotalDifferenceCount);
+
+            Assert.True(synchronizedState.OldEditor.Lines[1].HasDifference);
+            Assert.Equal(new[] { 2, 4 }, synchronizedState.OldEditor.DifferenceLineIndices);
+            Assert.Equal(1, synchronizedState.OldEditor.DifferenceOrdinalByLineIndex[2]);
+            Assert.Equal(2, synchronizedState.OldEditor.DifferenceOrdinalByLineIndex[4]);
+            Assert.False(synchronizedState.OldEditor.DifferenceOrdinalByLineIndex.ContainsKey(1));
+
+            Assert.Equal(new[] { 1, 3 }, synchronizedState.NewEditor.DifferenceLineIndices);
+            Assert.Equal(1, synchronizedState.NewEditor.DifferenceOrdinalByLineIndex[1]);
+            Assert.Equal(2, synchronizedState.NewEditor.DifferenceOrdinalByLineIndex[3]);
+
+            Assert.Equal(new[] { 1, 3 }, synchronizedState.ResultEditor.DifferenceLineIndices);
+            Assert.Equal(1, synchronizedState.ResultEditor.DifferenceOrdinalByLineIndex[1]);
+            Assert.Equal(2, synchronizedState.ResultEditor.DifferenceOrdinalByLineIndex[3]);
+
+            Assert.Equal(
+                2,
+                TextDiffHighlighter.FindNavigationTargetOrdinal(
+                    synchronizedState.ResultEditor.DifferenceLineIndices,
+                    synchronizedState.ResultEditor.DifferenceOrdinalByLineIndex,
+                    1,
+                    moveNext: true,
+                    synchronizedState.TotalDifferenceCount));
+            Assert.Equal(
+                3,
+                TextDiffHighlighter.FindLineIndexByDifferenceOrdinal(
+                    synchronizedState.ResultEditor.DifferenceOrdinalByLineIndex,
+                    2));
+        }
+
+        [Fact]
+        public void BuildSynchronizedState_ShouldTreatContinuousIndentedBlockAsSingleDifference()
+        {
+            var synchronizedState = TextDiffHighlighter.BuildSynchronizedState(
+                "\tif $mod_enabled\n\t\tpost $object_detected = 0\n\t\trun = CommandListUpdateMergedSkeleton\n\telse\n\t\tif $mod_id == -1000\n\t\t\trun = CommandListRegisterMod\n\t\tendif\n\tendif",
+                "    if $mod_enabled\n        post $object_detected = 0\n        run = CommandListUpdateMergedSkeleton\n    else\n        if $mod_id == -1000\n            run = CommandListRegisterMod\n        endif\n    endif",
+                "\tif $mod_enabled\n\t\tpost $object_detected = 0\n\t\trun = CommandListUpdateMergedSkeleton\n\telse\n\t\tif $mod_id == -1000\n\t\t\trun = CommandListRegisterMod\n\t\tendif\n\tendif");
+
+            Assert.Equal(1, synchronizedState.TotalDifferenceCount);
+            Assert.All(
+                synchronizedState.ResultEditor.DifferenceLineIndices,
+                lineIndex => Assert.Equal(1, synchronizedState.ResultEditor.DifferenceOrdinalByLineIndex[lineIndex]));
+        }
+
+        [Fact]
+        public void BuildSynchronizedState_ShouldKeepConsecutiveTopLevelAssignmentsAsSeparateDifferences()
+        {
+            var synchronizedState = TextDiffHighlighter.BuildSynchronizedState(
+                "global persist $top = 4\nglobal persist $collar = 1",
+                "global persist $top = 0\nglobal persist $collar = 0",
+                "global persist $top = 4\nglobal persist $collar = 1");
+
+            Assert.Equal(2, synchronizedState.TotalDifferenceCount);
+            Assert.Equal(1, synchronizedState.ResultEditor.DifferenceOrdinalByLineIndex[0]);
+            Assert.Equal(2, synchronizedState.ResultEditor.DifferenceOrdinalByLineIndex[1]);
+        }
+
+        [Fact]
+        public void BuildSourceLineTextByReferenceLineIndexForReplacement_ShouldPreferCurrentLineReplacementBeforeAdjacentInsertions()
+        {
+            var lineMap = TextDiffHighlighter.BuildSourceLineTextByReferenceLineIndexForReplacement(
+                "same\nold-a\nsame2",
+                "same\nresult-a\ninserted\nsame2");
+
+            Assert.Equal("same", lineMap[0]);
+            Assert.Equal("old-a", lineMap[1]);
+            Assert.Null(lineMap[2]);
+            Assert.Equal("same2", lineMap[3]);
+        }
+
+        [Fact]
         public void FindNavigationTargetOrdinal_ShouldWrapAtEdges()
         {
             var indices = new[] { 1, 3, 6 };

@@ -561,8 +561,26 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Text="MOD 根目录"
-                                           Style="{StaticResource SectionEyebrowStyle}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="220"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Text="MOD 根目录"
+                                               Style="{StaticResource SectionEyebrowStyle}"/>
+                                    <TextBlock Grid.Column="2"
+                                               Height="18"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               TextAlignment="Right"
+                                               TextWrapping="NoWrap"
+                                               TextTrimming="CharacterEllipsis"
+                                               Text="{Binding ModPathLoadStatusText}"
+                                               ToolTip="{Binding ModPathLoadStatusText}"
+                                               Style="{StaticResource CaptionTextStyle}"/>
+                                </Grid>
                                 <Grid Grid.Row="1"
                                       Margin="0,6,0,0"
                                       Width="572"
@@ -592,8 +610,26 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Text="WWMI 根目录"
-                                           Style="{StaticResource SectionEyebrowStyle}"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="220"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Text="WWMI 根目录"
+                                               Style="{StaticResource SectionEyebrowStyle}"/>
+                                    <TextBlock Grid.Column="2"
+                                               Height="18"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"
+                                               TextAlignment="Right"
+                                               TextWrapping="NoWrap"
+                                               TextTrimming="CharacterEllipsis"
+                                               Text="{Binding WwmiPathLoadStatusText}"
+                                               ToolTip="{Binding WwmiPathLoadStatusText}"
+                                               Style="{StaticResource CaptionTextStyle}"/>
+                                </Grid>
                                 <Grid Grid.Row="1"
                                       Margin="0,6,0,0"
                                       Width="572"

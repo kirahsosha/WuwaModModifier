@@ -14,6 +14,12 @@ namespace WuwaModModifier
 {
     public partial class VersionSyncWindow : Window
     {
+        private enum CurrentDifferenceApplySource
+        {
+            Old,
+            New
+        }
+
         private static readonly Brush OldDiffBrush = CreateFrozenBrush(Color.FromRgb(0xF8, 0xE1, 0xD6));
         private static readonly Brush NewDiffBrush = CreateFrozenBrush(Color.FromRgb(0xD8, 0xEF, 0xEA));
         private static readonly Brush ResultDiffBrush = CreateFrozenBrush(Color.FromRgb(0xF5, 0xE7, 0xB5));
@@ -166,6 +172,16 @@ namespace WuwaModModifier
         private void btnNextDifference_Click(object sender, RoutedEventArgs e)
         {
             NavigateToDifference(moveNext: true);
+        }
+
+        private void btnApplyOldDifference_Click(object sender, RoutedEventArgs e)
+        {
+            ApplyCurrentDifference(CurrentDifferenceApplySource.Old);
+        }
+
+        private void btnApplyNewDifference_Click(object sender, RoutedEventArgs e)
+        {
+            ApplyCurrentDifference(CurrentDifferenceApplySource.New);
         }
 
         private void RenderComparisonEditors(bool resetScrollPosition)
@@ -343,25 +359,78 @@ namespace WuwaModModifier
             {
                 btnPreviousDifference.IsEnabled = false;
                 btnNextDifference.IsEnabled = false;
+                SetCurrentDifferenceApplyButtonsEnabled(false);
                 txtDifferencePosition.Text = "无差异";
                 return;
             }
 
-            _comparisonDifferenceLineIndices.TryGetValue(editor, out var differenceLineIndices);
-            _comparisonDifferenceOrdinalsByLineIndex.TryGetValue(editor, out var differenceOrdinalByLineIndex);
-            differenceLineIndices ??= Array.Empty<int>();
-            differenceOrdinalByLineIndex ??= new Dictionary<int, int>();
-
             btnPreviousDifference.IsEnabled = true;
             btnNextDifference.IsEnabled = true;
-
-            var currentLineIndex = GetCurrentLineIndex(editor);
-            var currentOrdinal = differenceOrdinalByLineIndex.TryGetValue(currentLineIndex, out var ordinal)
-                ? ordinal
-                : (int?)null;
+            var currentOrdinal = GetCurrentDifferenceOrdinal(editor);
+            SetCurrentDifferenceApplyButtonsEnabled(currentOrdinal.HasValue);
             txtDifferencePosition.Text = currentOrdinal.HasValue
                 ? $"当前第 {currentOrdinal.Value} 处 / 共 {_comparisonTotalDifferenceCount} 处差异"
                 : $"当前未停留在差异处 / 共 {_comparisonTotalDifferenceCount} 处差异";
+        }
+
+        private void ApplyCurrentDifference(CurrentDifferenceApplySource applySource)
+        {
+            var sourceEditor = GetActiveComparisonEditor();
+            var currentOrdinal = GetCurrentDifferenceOrdinal(sourceEditor);
+            if (!currentOrdinal.HasValue)
+            {
+                RefreshDifferenceNavigationButtons();
+                return;
+            }
+
+            var synchronizedState = TextDiffHighlighter.BuildSynchronizedState(
+                ViewModel.OldConfigText,
+                ViewModel.NewConfigText,
+                ViewModel.ResultConfigText);
+            var resultLineIndex = TextDiffHighlighter.FindLineIndexByDifferenceOrdinal(
+                synchronizedState.ResultEditor.DifferenceOrdinalByLineIndex,
+                currentOrdinal.Value);
+            IReadOnlyDictionary<int, string?> sourceLineTextByResultLineIndex = applySource switch
+            {
+                CurrentDifferenceApplySource.Old => TextDiffHighlighter.BuildSourceLineTextByReferenceLineIndexForReplacement(
+                    ViewModel.OldConfigText,
+                    ViewModel.ResultConfigText),
+                CurrentDifferenceApplySource.New => TextDiffHighlighter.BuildSourceLineTextByReferenceLineIndexForReplacement(
+                    ViewModel.NewConfigText,
+                    ViewModel.ResultConfigText),
+                _ => throw new InvalidOperationException("Unknown difference apply source.")
+            };
+
+            if (!resultLineIndex.HasValue ||
+                resultLineIndex.Value < 0 ||
+                resultLineIndex.Value >= synchronizedState.ResultEditor.Lines.Count ||
+                !TryResolveResultLineReplacement(
+                    sourceLineTextByResultLineIndex,
+                    resultLineIndex.Value,
+                    out var replacementLineText,
+                    out var removeResultLine) ||
+                !TryUpdateResultTextAtLineIndex(
+                    ViewModel.ResultConfigText,
+                    resultLineIndex.Value,
+                    replacementLineText,
+                    removeResultLine,
+                    out var updatedResultText))
+            {
+                RefreshDifferenceNavigationButtons();
+                return;
+            }
+
+            var preferredCaretLineIndex = removeResultLine
+                ? Math.Max(0, resultLineIndex.Value - 1)
+                : resultLineIndex.Value;
+
+            _activeComparisonEditor = rtbResultConfigText;
+            ViewModel.ResultConfigText = updatedResultText;
+
+            rtbResultConfigText.Focus();
+            RestoreCaretLineIndex(rtbResultConfigText, preferredCaretLineIndex);
+            GetParagraphAtOrBeforeLineIndex(rtbResultConfigText.Document, preferredCaretLineIndex)?.BringIntoView();
+            RefreshDifferenceNavigationButtons();
         }
 
         private void NavigateToDifference(bool moveNext)
@@ -435,6 +504,145 @@ namespace WuwaModModifier
 
             lineIndex = result.Value;
             return true;
+        }
+
+        private int? GetCurrentDifferenceOrdinal(RichTextBox? editor)
+        {
+            if (editor == null ||
+                !_comparisonDifferenceOrdinalsByLineIndex.TryGetValue(editor, out var differenceOrdinalByLineIndex))
+            {
+                return null;
+            }
+
+            var currentLineIndex = GetCurrentLineIndex(editor);
+            return differenceOrdinalByLineIndex.TryGetValue(currentLineIndex, out var ordinal)
+                ? ordinal
+                : (int?)null;
+        }
+
+        private void SetCurrentDifferenceApplyButtonsEnabled(bool isEnabled)
+        {
+            btnApplyOldDifference.IsEnabled = isEnabled;
+            btnApplyNewDifference.IsEnabled = isEnabled;
+        }
+
+        private static bool TryResolveResultLineReplacement(
+            IReadOnlyDictionary<int, string?> sourceLineTextByResultLineIndex,
+            int resultLineIndex,
+            out string? replacementLineText,
+            out bool removeResultLine)
+        {
+            return TryResolveReplacementFromMap(
+                sourceLineTextByResultLineIndex,
+                resultLineIndex,
+                out replacementLineText,
+                out removeResultLine);
+        }
+
+        private static bool TryResolveReplacementFromMap(
+            IReadOnlyDictionary<int, string?> lineTextByResultLineIndex,
+            int resultLineIndex,
+            out string? replacementLineText,
+            out bool removeResultLine)
+        {
+            if (!lineTextByResultLineIndex.TryGetValue(resultLineIndex, out replacementLineText))
+            {
+                removeResultLine = false;
+                return false;
+            }
+
+            removeResultLine = replacementLineText == null;
+            return true;
+        }
+
+        private static bool TryUpdateResultTextAtLineIndex(
+            string resultText,
+            int lineIndex,
+            string? replacementLineText,
+            bool removeResultLine,
+            out string updatedResultText)
+        {
+            updatedResultText = resultText;
+
+            var lines = SplitTextLinesForEditing(resultText);
+            if (lineIndex < 0 || lineIndex >= lines.Count)
+            {
+                return false;
+            }
+
+            if (removeResultLine)
+            {
+                lines.RemoveAt(lineIndex);
+            }
+            else if (replacementLineText != null)
+            {
+                lines[lineIndex] = replacementLineText;
+            }
+            else
+            {
+                return false;
+            }
+
+            if (lines.Count == 0)
+            {
+                updatedResultText = string.Empty;
+                return true;
+            }
+
+            var lineEnding = DetectLineEnding(resultText);
+            updatedResultText = string.Join(lineEnding, lines);
+            if (HasTrailingLineBreak(resultText))
+            {
+                updatedResultText += lineEnding;
+            }
+
+            return true;
+        }
+
+        private static List<string> SplitTextLinesForEditing(string text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return new List<string>();
+            }
+
+            var normalized = text
+                .Replace("\r\n", "\n", StringComparison.Ordinal)
+                .Replace('\r', '\n');
+            var lines = normalized.Split('\n').ToList();
+            if (lines.Count > 0 && lines[^1].Length == 0)
+            {
+                lines.RemoveAt(lines.Count - 1);
+            }
+
+            return lines;
+        }
+
+        private static string DetectLineEnding(string text)
+        {
+            if (text.Contains("\r\n", StringComparison.Ordinal))
+            {
+                return "\r\n";
+            }
+
+            if (text.Contains('\n'))
+            {
+                return "\n";
+            }
+
+            if (text.Contains('\r'))
+            {
+                return "\r";
+            }
+
+            return Environment.NewLine;
+        }
+
+        private static bool HasTrailingLineBreak(string text)
+        {
+            return text.EndsWith("\r\n", StringComparison.Ordinal) ||
+                text.EndsWith("\n", StringComparison.Ordinal) ||
+                text.EndsWith("\r", StringComparison.Ordinal);
         }
 
         private RichTextBox? GetActiveComparisonEditor()

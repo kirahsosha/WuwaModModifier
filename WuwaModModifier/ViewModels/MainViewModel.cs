@@ -36,6 +36,8 @@ namespace WuwaModModifier.ViewModels
 
         private string _modFolderPath;
         private string _wwmiFolderPath;
+        private string _modPathLoadStatusText;
+        private string _wwmiPathLoadStatusText;
         private string _otherFolderPath;
         private string _selectedConfigPath;
         private string _selectedConfigAnalysisStatus;
@@ -116,6 +118,8 @@ namespace WuwaModModifier.ViewModels
 
             _modFolderPath = AppConfig.DefaultModPath;
             _wwmiFolderPath = AppConfig.DefaultWwmiPath;
+            _modPathLoadStatusText = string.Empty;
+            _wwmiPathLoadStatusText = string.Empty;
             _otherFolderPath = AppConfig.OtherFolderPath;
             _selectedConfigPath = string.Empty;
             _selectedConfigAnalysisStatus = "请选择具体 MOD 查看配置分析。";
@@ -226,6 +230,18 @@ namespace WuwaModModifier.ViewModels
             private set => SetProperty(ref _selectedConfigEditStatus, value);
         }
 
+        public string ModPathLoadStatusText
+        {
+            get => _modPathLoadStatusText;
+            private set => SetProperty(ref _modPathLoadStatusText, value);
+        }
+
+        public string WwmiPathLoadStatusText
+        {
+            get => _wwmiPathLoadStatusText;
+            private set => SetProperty(ref _wwmiPathLoadStatusText, value);
+        }
+
         public string RawConfigEditorText
         {
             get => _rawConfigEditorText;
@@ -296,6 +312,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _modFolderPath, value))
                 {
+                    ModPathLoadStatusText = string.Empty;
                     OnPathPreviewChanged();
                     CommandManager.InvalidateRequerySuggested();
                 }
@@ -309,6 +326,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _wwmiFolderPath, value))
                 {
+                    WwmiPathLoadStatusText = string.Empty;
                     OnPathPreviewChanged();
                     CommandManager.InvalidateRequerySuggested();
                 }
@@ -680,11 +698,11 @@ namespace WuwaModModifier.ViewModels
             {
                 // 加载目录树
                 LoadDirectoryTree();
-                _messages.ShowInfo($"共找到 {characterCount} 名角色共 {modCount} 个MOD。");
+                ModPathLoadStatusText = $"共找到 {characterCount} 名角色共 {modCount} 个 MOD。";
             }
             else
             {
-                _messages.ShowInfo("未找到MOD。");
+                ModPathLoadStatusText = "未找到 MOD。";
             }
         }
 
@@ -697,11 +715,11 @@ namespace WuwaModModifier.ViewModels
             {
                 // 选中已加载的MOD
                 SelectLoadedMods();
-                _messages.ShowInfo($"共找到 {modCount} 个MOD。");
+                WwmiPathLoadStatusText = $"共找到 {modCount} 个 MOD。";
             }
             else
             {
-                _messages.ShowInfo("未找到MOD。");
+                WwmiPathLoadStatusText = "未找到 MOD。";
             }
         }
 

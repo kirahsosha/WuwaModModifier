@@ -264,7 +264,7 @@
 
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="446"/>
+                <ColumnDefinition Width="446"/>
                 <ColumnDefinition Width="10"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
@@ -578,26 +578,53 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
-                                <StackPanel Grid.Row="0"
-                                            Grid.ColumnSpan="5"
-                                            Orientation="Horizontal">
+                                <Grid Grid.Row="0"
+                                      Grid.ColumnSpan="5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="104"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="104"/>
+                                        <ColumnDefinition Width="12"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
                                     <Button x:Name="btnPreviousDifference"
+                                            Grid.Column="0"
                                             MinWidth="88"
                                             Padding="12,4"
                                             Content="上一个"
                                             Click="btnPreviousDifference_Click"/>
                                     <Button x:Name="btnNextDifference"
-                                            Margin="8,0,0,0"
+                                            Grid.Column="2"
                                             MinWidth="88"
                                             Padding="12,4"
                                             Content="下一个"
                                             Click="btnNextDifference_Click"/>
+                                    <Button x:Name="btnApplyOldDifference"
+                                            Grid.Column="4"
+                                            Width="104"
+                                            Padding="12,4"
+                                            Content="应用旧配置"
+                                            Click="btnApplyOldDifference_Click"
+                                            IsEnabled="False"/>
+                                    <Button x:Name="btnApplyNewDifference"
+                                            Grid.Column="6"
+                                            Width="104"
+                                            Padding="12,4"
+                                            Content="应用新配置"
+                                            Click="btnApplyNewDifference_Click"
+                                            IsEnabled="False"/>
                                     <TextBlock x:Name="txtDifferencePosition"
-                                               Margin="12,4,0,0"
+                                               Grid.Column="8"
+                                               Margin="0,4,0,0"
                                                VerticalAlignment="Center"
                                                Text="无差异"
                                                Style="{StaticResource CaptionStyle}"/>
-                                </StackPanel>
+                                </Grid>
 
                                 <Border Grid.Row="2"
                                         Grid.Column="0"

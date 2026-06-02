@@ -142,12 +142,24 @@ namespace WuwaModModifier.Common
             var newLineIndex = 0;
             var resultLineIndex = 0;
             var differenceOrdinal = 0;
+            var previousVisibleDifferenceResultLineIndex = -1;
 
             foreach (var row in rows)
             {
-                if (row.HasDifference)
+                var hasNavigableDifference = row.HasDifference && row.ResultLine != null;
+
+                if (hasNavigableDifference)
                 {
-                    differenceOrdinal++;
+                    var currentResultLineText = row.ResultLine!.Text;
+                    if (!ShouldContinueVisibleDifferenceGroup(
+                            previousVisibleDifferenceResultLineIndex,
+                            resultLineIndex,
+                            currentResultLineText))
+                    {
+                        differenceOrdinal++;
+                    }
+
+                    previousVisibleDifferenceResultLineIndex = resultLineIndex;
                 }
 
                 if (row.OldLine != null)
@@ -158,7 +170,7 @@ namespace WuwaModModifier.Common
                         row.ResultLine?.Text,
                         row.HasDifference));
 
-                    if (row.HasDifference)
+                    if (hasNavigableDifference)
                     {
                         oldDifferenceLineIndices.Add(oldLineIndex);
                         oldDifferenceOrdinalByLineIndex[oldLineIndex] = differenceOrdinal;
@@ -175,7 +187,7 @@ namespace WuwaModModifier.Common
                         row.ResultLine?.Text,
                         row.HasDifference));
 
-                    if (row.HasDifference)
+                    if (hasNavigableDifference)
                     {
                         newDifferenceLineIndices.Add(newLineIndex);
                         newDifferenceOrdinalByLineIndex[newLineIndex] = differenceOrdinal;
@@ -192,7 +204,7 @@ namespace WuwaModModifier.Common
                         row.OldLine?.Text,
                         row.HasDifference));
 
-                    if (row.HasDifference)
+                    if (hasNavigableDifference)
                     {
                         resultDifferenceLineIndices.Add(resultLineIndex);
                         resultDifferenceOrdinalByLineIndex[resultLineIndex] = differenceOrdinal;
@@ -224,6 +236,72 @@ namespace WuwaModModifier.Common
                     DifferenceOrdinalByLineIndex = resultDifferenceOrdinalByLineIndex
                 }
             };
+        }
+
+        private static bool ShouldContinueVisibleDifferenceGroup(
+            int previousVisibleDifferenceResultLineIndex,
+            int currentResultLineIndex,
+            string currentResultLineText)
+        {
+            return previousVisibleDifferenceResultLineIndex >= 0 &&
+                currentResultLineIndex == previousVisibleDifferenceResultLineIndex + 1 &&
+                !StartsNewStandaloneDifferenceItem(currentResultLineText);
+        }
+
+        private static bool StartsNewStandaloneDifferenceItem(string lineText)
+        {
+            if (string.IsNullOrWhiteSpace(lineText))
+            {
+                return false;
+            }
+
+            var trimmedLineText = lineText.TrimStart();
+            if (trimmedLineText.Length != lineText.Length)
+            {
+                return false;
+            }
+
+            return !StartsWithBlockContinuationKeyword(trimmedLineText);
+        }
+
+        private static bool StartsWithBlockContinuationKeyword(string lineText)
+        {
+            return StartsWithKeyword(lineText, "else") ||
+                StartsWithKeyword(lineText, "elseif") ||
+                StartsWithKeyword(lineText, "endif");
+        }
+
+        private static bool StartsWithKeyword(string lineText, string keyword)
+        {
+            if (!lineText.StartsWith(keyword, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return lineText.Length == keyword.Length ||
+                char.IsWhiteSpace(lineText[keyword.Length]);
+        }
+
+        public static IReadOnlyDictionary<int, string?> BuildSourceLineTextByReferenceLineIndexForReplacement(string sourceText, string referenceText)
+        {
+            var sourceLines = SplitLines(sourceText);
+            var referenceLines = SplitLines(referenceText);
+            var alignedPairs = BuildAlignedLinePairsForReplacement(sourceLines, referenceLines);
+            var sourceLineTextByReferenceLineIndex = new Dictionary<int, string?>();
+            var referenceLineIndex = 0;
+
+            foreach (var alignedPair in alignedPairs)
+            {
+                if (alignedPair.ReferenceLine == null)
+                {
+                    continue;
+                }
+
+                sourceLineTextByReferenceLineIndex[referenceLineIndex] = alignedPair.SourceLine;
+                referenceLineIndex++;
+            }
+
+            return sourceLineTextByReferenceLineIndex;
         }
 
         public static IReadOnlyList<int> GetDifferenceLineIndices(IReadOnlyList<TextDiffHighlightLine> lines)
@@ -678,6 +756,76 @@ namespace WuwaModModifier.Common
                     }
 
                     if (remainingSourceCount > remainingReferenceCount)
+                    {
+                        result.Add(new AlignedLinePair(sourceLines[sourcePointer], null));
+                        sourcePointer++;
+                        continue;
+                    }
+
+                    result.Add(new AlignedLinePair(sourceLines[sourcePointer], referenceLines[referencePointer]));
+                    sourcePointer++;
+                    referencePointer++;
+                    continue;
+                }
+
+                if (referencePointer >= referenceLines.Count ||
+                    (sourcePointer < sourceLines.Count && lcsLengths[sourcePointer + 1, referencePointer] >= lcsLengths[sourcePointer, referencePointer + 1]))
+                {
+                    result.Add(new AlignedLinePair(sourceLines[sourcePointer], null));
+                    sourcePointer++;
+                    continue;
+                }
+
+                result.Add(new AlignedLinePair(null, referenceLines[referencePointer]));
+                referencePointer++;
+            }
+
+            return result;
+        }
+
+        private static List<AlignedLinePair> BuildAlignedLinePairsForReplacement(IReadOnlyList<string> sourceLines, IReadOnlyList<string> referenceLines)
+        {
+            var lcsLengths = new int[sourceLines.Count + 1, referenceLines.Count + 1];
+            for (var sourceIndex = sourceLines.Count - 1; sourceIndex >= 0; sourceIndex--)
+            {
+                for (var referenceIndex = referenceLines.Count - 1; referenceIndex >= 0; referenceIndex--)
+                {
+                    lcsLengths[sourceIndex, referenceIndex] = string.Equals(sourceLines[sourceIndex], referenceLines[referenceIndex], StringComparison.Ordinal)
+                        ? lcsLengths[sourceIndex + 1, referenceIndex + 1] + 1
+                        : Math.Max(lcsLengths[sourceIndex + 1, referenceIndex], lcsLengths[sourceIndex, referenceIndex + 1]);
+                }
+            }
+
+            var result = new List<AlignedLinePair>();
+            var sourcePointer = 0;
+            var referencePointer = 0;
+
+            while (sourcePointer < sourceLines.Count || referencePointer < referenceLines.Count)
+            {
+                if (sourcePointer < sourceLines.Count &&
+                    referencePointer < referenceLines.Count &&
+                    string.Equals(sourceLines[sourcePointer], referenceLines[referencePointer], StringComparison.Ordinal))
+                {
+                    result.Add(new AlignedLinePair(sourceLines[sourcePointer], referenceLines[referencePointer]));
+                    sourcePointer++;
+                    referencePointer++;
+                    continue;
+                }
+
+                if (sourcePointer < sourceLines.Count &&
+                    referencePointer < referenceLines.Count &&
+                    lcsLengths[sourcePointer + 1, referencePointer] == lcsLengths[sourcePointer, referencePointer + 1])
+                {
+                    if (referencePointer + 1 < referenceLines.Count &&
+                        string.Equals(sourceLines[sourcePointer], referenceLines[referencePointer + 1], StringComparison.Ordinal))
+                    {
+                        result.Add(new AlignedLinePair(null, referenceLines[referencePointer]));
+                        referencePointer++;
+                        continue;
+                    }
+
+                    if (sourcePointer + 1 < sourceLines.Count &&
+                        string.Equals(sourceLines[sourcePointer + 1], referenceLines[referencePointer], StringComparison.Ordinal))
                     {
                         result.Add(new AlignedLinePair(sourceLines[sourcePointer], null));
                         sourcePointer++;
