@@ -65,6 +65,7 @@ namespace WuwaModModifier.ViewModels
         public string ValueOptionsText { get; set; } = string.Empty;
         public string BoundKeySectionsText { get; set; } = string.Empty;
         public string KeyBindingsText { get; set; } = string.Empty;
+        public string LinkedParametersText { get; set; } = string.Empty;
         public int NavigateLine { get; set; }
         public bool CanRename { get; set; }
         public bool CanBindVisibilitySafely { get; set; }
@@ -84,6 +85,7 @@ namespace WuwaModModifier.ViewModels
                 ValueOptionsText = Join(parameter.ValueOptions),
                 BoundKeySectionsText = Join(parameter.BoundKeySections),
                 KeyBindingsText = Join(parameter.KeyBindings),
+                LinkedParametersText = JoinSemicolon(parameter.LinkedParameterNames),
                 CanRename = parameter.CanRename
             };
         }
@@ -91,6 +93,11 @@ namespace WuwaModModifier.ViewModels
         private static string Join(IEnumerable<string> values)
         {
             return string.Join(" | ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+        }
+
+        private static string JoinSemicolon(IEnumerable<string> values)
+        {
+            return string.Join("; ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
         }
     }
 
@@ -101,6 +108,8 @@ namespace WuwaModModifier.ViewModels
         public int DrawCallCount { get; set; }
         public string DrawLabelsText { get; set; } = string.Empty;
         public string ControllingParametersText { get; set; } = string.Empty;
+        public string ModelParametersText { get; set; } = string.Empty;
+        public string KeyParametersText { get; set; } = string.Empty;
         public string ControllingKeyBindingsText { get; set; } = string.Empty;
         public int NavigateLine { get; set; }
         public bool CanToggleSafely { get; set; }
@@ -115,6 +124,8 @@ namespace WuwaModModifier.ViewModels
                 DrawCallCount = item.DrawCallCount,
                 DrawLabelsText = Join(item.DrawLabels),
                 ControllingParametersText = Join(item.ControllingParameters),
+                ModelParametersText = JoinSemicolon(item.ModelParameters),
+                KeyParametersText = JoinSemicolon(item.KeyParameterBindings.Select(FormatKeyParameterBinding)),
                 ControllingKeyBindingsText = Join(item.ControllingKeyBindings),
                 CanToggleSafely = item.DrawCallCount > 0 && item.ControllingParameters.Count == 1,
                 CanBindSafely = item.DrawCallCount > 0 &&
@@ -127,6 +138,19 @@ namespace WuwaModModifier.ViewModels
         private static string Join(IEnumerable<string> values)
         {
             return string.Join(" | ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+        }
+
+        private static string JoinSemicolon(IEnumerable<string> values)
+        {
+            return string.Join("; ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+        }
+
+        private static string FormatKeyParameterBinding(ModVisibilityKeyParameterBinding binding)
+        {
+            var effectiveValues = string.Join(", ", binding.EffectiveValues.Where(value => !string.IsNullOrWhiteSpace(value)));
+            return string.IsNullOrWhiteSpace(effectiveValues)
+                ? binding.ParameterName
+                : $"{binding.ParameterName} = {effectiveValues}";
         }
     }
 

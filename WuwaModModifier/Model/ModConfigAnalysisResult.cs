@@ -4,11 +4,11 @@ namespace WuwaModModifier.Model
 {
     public enum ModConfigParameterKind
     {
-        Unknown,
-        Toggle,
-        EnumLike,
-        ShapeLike,
-        InternalSystem
+        Unknown = 0,
+        InternalSystem = 1,
+        Toggle = 2,
+        Texture = 3,
+        Link = 4
     }
 
     public enum ModConfigVisibilityConfidence
@@ -52,13 +52,24 @@ namespace WuwaModModifier.Model
         public List<string> ValueOptions { get; set; } = new List<string>();
         public List<string> BoundKeySections { get; set; } = new List<string>();
         public List<string> KeyBindings { get; set; } = new List<string>();
+        public List<string> ToggleTypes { get; set; } = new List<string>();
         public List<string> ReferencedInSections { get; set; } = new List<string>();
+        public List<string> LinkedParameterNames { get; set; } = new List<string>();
         public bool CanRename { get; set; }
+    }
+
+    public class ModVisibilityKeyParameterBinding
+    {
+        public string ParameterName { get; set; } = string.Empty;
+        public List<string> EffectiveValues { get; set; } = new List<string>();
+        public List<string> KeySections { get; set; } = new List<string>();
+        public List<string> KeyBindings { get; set; } = new List<string>();
     }
 
     public class ModVisibilityItem
     {
         public string SectionName { get; set; } = string.Empty;
+        public int NavigateLine { get; set; }
         public string Hash { get; set; } = string.Empty;
         public string MatchFirstIndex { get; set; } = string.Empty;
         public string MatchIndexCount { get; set; } = string.Empty;
@@ -66,6 +77,8 @@ namespace WuwaModModifier.Model
         public int DrawCallCount { get; set; }
         public List<string> DrawLabels { get; set; } = new List<string>();
         public List<string> RelatedSectionNames { get; set; } = new List<string>();
+        public List<string> ModelParameters { get; set; } = new List<string>();
+        public List<ModVisibilityKeyParameterBinding> KeyParameterBindings { get; set; } = new List<ModVisibilityKeyParameterBinding>();
         public List<string> ControllingParameters { get; set; } = new List<string>();
         public List<string> ControllingKeySections { get; set; } = new List<string>();
         public List<string> ControllingKeyBindings { get; set; } = new List<string>();

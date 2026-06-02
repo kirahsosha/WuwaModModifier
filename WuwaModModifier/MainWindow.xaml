@@ -1109,6 +1109,9 @@
                                         <DataGridTextColumn Header="按键"
                                                             Binding="{Binding KeyBindingsText}"
                                                             Width="180"/>
+                                        <DataGridTextColumn Header="绑定参数"
+                                                            Binding="{Binding LinkedParametersText}"
+                                                            Width="180"/>
                                         <DataGridCheckBoxColumn Header="可改名"
                                                                 Binding="{Binding CanRename}"
                                                                 Width="70"/>
@@ -1269,9 +1272,12 @@
                                         <DataGridTextColumn Header="标签"
                                                             Binding="{Binding DrawLabelsText}"
                                                             Width="260"/>
-                                        <DataGridTextColumn Header="控制参数"
-                                                            Binding="{Binding ControllingParametersText}"
+                                        <DataGridTextColumn Header="模型参数"
+                                                            Binding="{Binding ModelParametersText}"
                                                             Width="180"/>
+                                        <DataGridTextColumn Header="按键参数"
+                                                            Binding="{Binding KeyParametersText}"
+                                                            Width="220"/>
                                         <DataGridTextColumn Header="控制按键"
                                                             Binding="{Binding ControllingKeyBindingsText}"
                                                             Width="220"/>

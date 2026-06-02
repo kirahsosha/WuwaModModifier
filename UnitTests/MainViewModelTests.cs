@@ -312,7 +312,7 @@ namespace UnitTests
                 Assert.Equal(string.Empty, internalParameter.BoundKeySectionsText);
                 Assert.Equal(string.Empty, internalParameter.KeyBindingsText);
                 Assert.Equal("TextureOverrideComponent0", vm.SelectedVisibilityItems[0].SectionName);
-                Assert.Equal(10, vm.SelectedVisibilityItems[0].NavigateLine);
+                Assert.Equal(15, vm.SelectedVisibilityItems[0].NavigateLine);
             }
             finally
             {
@@ -470,7 +470,7 @@ namespace UnitTests
 
                 var visibilityItem = Assert.Single(vm.SelectedVisibilityItems);
                 vm.SelectedVisibilityItem = visibilityItem;
-                Assert.Equal(10, vm.RawConfigNavigateLine);
+                Assert.Equal(15, vm.RawConfigNavigateLine);
                 Assert.True(vm.RawConfigNavigateRequestVersion > parameterRequestVersion);
             }
             finally

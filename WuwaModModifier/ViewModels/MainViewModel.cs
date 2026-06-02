@@ -1052,7 +1052,9 @@ namespace WuwaModModifier.ViewModels
             return visibilityItems.Select(visibility =>
             {
                 var summaryItem = ConfigVisibilitySummaryItem.FromModel(visibility);
-                summaryItem.NavigateLine = GetSectionStartLine(document, visibility.SectionName);
+                summaryItem.NavigateLine = visibility.NavigateLine > 0
+                    ? visibility.NavigateLine
+                    : GetSectionStartLine(document, visibility.SectionName);
                 return summaryItem;
             }).ToList();
         }
@@ -1071,7 +1073,7 @@ namespace WuwaModModifier.ViewModels
             }
 
             return parameter.IsDeclaredInConstants &&
-                parameter.Kind != ModConfigParameterKind.InternalSystem &&
+                parameter.Kind == ModConfigParameterKind.Toggle &&
                 parameter.BoundKeySections.Count > 0 &&
                 availableValues.Count > 0 &&
                 availableValues.All(value => value == "0" || value == "1") &&

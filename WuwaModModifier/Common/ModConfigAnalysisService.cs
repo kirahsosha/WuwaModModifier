@@ -16,6 +16,9 @@ namespace WuwaModModifier.Common
         private static readonly Regex VariableReferenceRegex =
             new Regex(@"(?<var>\$[^\s=,]+)", RegexOptions.Compiled);
 
+        private static readonly Regex VariableComparisonRegex =
+            new Regex(@"(?<var>\$[^\s=,()!<>]+)\s*(==|=)\s*(?<value>[-+]?\d+(?:\.\d+)?)", RegexOptions.Compiled);
+
         private readonly IModConfigParser _parser;
 
         public ModConfigAnalysisService(IModConfigParser parser)
@@ -78,6 +81,7 @@ namespace WuwaModModifier.Common
                 .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var variableDependencyGraph = BuildVariableDependencyGraph(document);
+            var variableExpressionsByVariable = BuildVariableExpressions(document);
 
             var parameterLookup = finalizedParameters.ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase);
             foreach (var toggle in result.Toggles)
@@ -90,7 +94,8 @@ namespace WuwaModModifier.Common
             }
 
             result.Parameters = finalizedParameters;
-            result.VisibilityItems = BuildVisibilityItems(document, parameterLookup, variableDependencyGraph);
+            result.VisibilityItems = BuildVisibilityItems(document, parameterLookup, variableDependencyGraph, variableExpressionsByVariable);
+            ApplyParameterLinksAndKinds(finalizedParameters, result.VisibilityItems, variableDependencyGraph);
             return result;
         }
 
@@ -217,12 +222,7 @@ namespace WuwaModModifier.Common
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            var kind = ClassifyParameter(
-                parameter.Name,
-                valueOptions,
-                boundKeySections.Count > 0,
-                parameter.IsDeclaredInConstants,
-                toggleTypes);
+            var kind = DeterminePreliminaryParameterKind(parameter.Name);
 
             return new ModParameterDefinition
             {
@@ -234,48 +234,18 @@ namespace WuwaModModifier.Common
                 ValueOptions = valueOptions,
                 BoundKeySections = boundKeySections,
                 KeyBindings = keyBindings,
+                ToggleTypes = toggleTypes,
                 ReferencedInSections = referencedSections,
+                LinkedParameterNames = new List<string>(),
                 CanRename = boundKeySections.Count > 0 && kind != ModConfigParameterKind.InternalSystem && !parameter.Name.Contains('\\')
             };
         }
 
-        private static ModConfigParameterKind ClassifyParameter(
-            string variableName,
-            IReadOnlyCollection<string> valueOptions,
-            bool hasBoundKeySections,
-            bool isDeclaredInConstants,
-            IReadOnlyCollection<string> toggleTypes)
+        private static ModConfigParameterKind DeterminePreliminaryParameterKind(string variableName)
         {
             if (IsInternalSystemVariable(variableName))
             {
                 return ModConfigParameterKind.InternalSystem;
-            }
-
-            if (toggleTypes.Count > 0 && toggleTypes.All(type => type.Equals("hold", StringComparison.OrdinalIgnoreCase)))
-            {
-                return ModConfigParameterKind.Unknown;
-            }
-
-            if (valueOptions.Count == 0)
-            {
-                return hasBoundKeySections || isDeclaredInConstants
-                    ? ModConfigParameterKind.Unknown
-                    : ModConfigParameterKind.InternalSystem;
-            }
-
-            if (valueOptions.All(value => value == "0" || value == "1") && valueOptions.Count <= 2)
-            {
-                return ModConfigParameterKind.Toggle;
-            }
-
-            if (valueOptions.Any(value => value.Contains('.')))
-            {
-                return ModConfigParameterKind.ShapeLike;
-            }
-
-            if (valueOptions.Count > 2)
-            {
-                return ModConfigParameterKind.EnumLike;
             }
 
             return ModConfigParameterKind.Unknown;
@@ -296,7 +266,8 @@ namespace WuwaModModifier.Common
         private static List<ModVisibilityItem> BuildVisibilityItems(
             ModConfigDocument document,
             IReadOnlyDictionary<string, ModParameterDefinition> parameterLookup,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableExpressionsByVariable)
         {
             var sectionLookup = document.Sections
                 .GroupBy(section => section.Name, StringComparer.OrdinalIgnoreCase)
@@ -304,7 +275,7 @@ namespace WuwaModModifier.Common
 
             return document.Sections
                 .Where(section => section.Name.StartsWith("TextureOverrideComponent", StringComparison.OrdinalIgnoreCase))
-                .SelectMany(section => BuildVisibilityItems(section, sectionLookup, parameterLookup, variableDependencyGraph))
+                .SelectMany(section => BuildVisibilityItems(section, sectionLookup, parameterLookup, variableDependencyGraph, variableExpressionsByVariable))
                 .OrderBy(item => item.SectionName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
@@ -313,7 +284,8 @@ namespace WuwaModModifier.Common
             ModConfigSection componentSection,
             IReadOnlyDictionary<string, ModConfigSection> sectionLookup,
             IReadOnlyDictionary<string, ModParameterDefinition> parameterLookup,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableExpressionsByVariable)
         {
             var drawEntries = new List<VisibilityDrawEntry>();
             TraverseVisibilityDrawEntries(
@@ -321,6 +293,7 @@ namespace WuwaModModifier.Common
                 sectionLookup,
                 new List<ModConfigSection>(),
                 new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                Array.Empty<string>(),
                 Array.Empty<string>(),
                 drawEntries);
 
@@ -332,7 +305,7 @@ namespace WuwaModModifier.Common
 
             foreach (var drawEntry in drawEntries)
             {
-                yield return BuildVisibilityItem(componentSection, drawEntry, parameterLookup, variableDependencyGraph);
+                yield return BuildVisibilityItem(componentSection, drawEntry, parameterLookup, variableDependencyGraph, variableExpressionsByVariable);
             }
         }
 
@@ -340,12 +313,19 @@ namespace WuwaModModifier.Common
             ModConfigSection componentSection,
             VisibilityDrawEntry drawEntry,
             IReadOnlyDictionary<string, ModParameterDefinition> parameterLookup,
-            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph)
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableExpressionsByVariable)
         {
             var controllingParameters = ResolveControllingParameters(
                 drawEntry.ControllingVariables,
                 parameterLookup,
                 variableDependencyGraph);
+            var modelParameters = ResolveModelParameters(drawEntry.ControllingVariables, parameterLookup);
+            var keyParameterBindings = ResolveVisibilityKeyParameterBindings(
+                drawEntry,
+                parameterLookup,
+                variableDependencyGraph,
+                variableExpressionsByVariable);
             var controllingKeySections = controllingParameters
                 .SelectMany(variableName => parameterLookup[variableName].BoundKeySections)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -358,12 +338,13 @@ namespace WuwaModModifier.Common
                 .ToList();
 
             var label = string.IsNullOrWhiteSpace(drawEntry.DrawLabel)
-                    ? string.Empty
+                    ? drawEntry.DrawCommandText
                     : drawEntry.DrawLabel.Replace("Draw", "").Replace("Component", "").Trim();
 
             return new ModVisibilityItem
             {
                 SectionName = componentSection.Name,
+                NavigateLine = drawEntry.LineNumber,
                 Hash = GetAssignmentValue(componentSection, "hash"),
                 MatchFirstIndex = GetAssignmentValue(componentSection, "match_first_index"),
                 MatchIndexCount = GetAssignmentValue(componentSection, "match_index_count"),
@@ -371,6 +352,8 @@ namespace WuwaModModifier.Common
                 DrawCallCount = 1,
                 DrawLabels = new List<string> { label },
                 RelatedSectionNames = drawEntry.RelatedSectionNames,
+                ModelParameters = modelParameters,
+                KeyParameterBindings = keyParameterBindings,
                 ControllingParameters = controllingParameters,
                 ControllingKeySections = controllingKeySections,
                 ControllingKeyBindings = controllingKeyBindings,
@@ -403,6 +386,7 @@ namespace WuwaModModifier.Common
             return new ModVisibilityItem
             {
                 SectionName = componentSection.Name,
+                NavigateLine = componentSection.HeaderLineNumber,
                 Hash = GetAssignmentValue(componentSection, "hash"),
                 MatchFirstIndex = GetAssignmentValue(componentSection, "match_first_index"),
                 MatchIndexCount = GetAssignmentValue(componentSection, "match_index_count"),
@@ -431,6 +415,7 @@ namespace WuwaModModifier.Common
             List<ModConfigSection> pathSections,
             HashSet<string> activePathSectionNames,
             IReadOnlyCollection<string> inheritedConditionVariables,
+            IReadOnlyCollection<string> inheritedConditionExpressions,
             List<VisibilityDrawEntry> drawEntries)
         {
             pathSections.Add(currentSection);
@@ -470,13 +455,19 @@ namespace WuwaModModifier.Common
                         case ModConfigStatementKind.Assignment when statement.Name.Equals("drawindexed", StringComparison.OrdinalIgnoreCase):
                             drawEntries.Add(new VisibilityDrawEntry
                             {
+                                LineNumber = statement.LineNumber,
                                 DrawLabel = pendingDrawLabel,
+                                DrawCommandText = statement.RawText.Trim(),
                                 RelatedSectionNames = pathSections
                                     .Select(section => section.Name)
                                     .Distinct(StringComparer.OrdinalIgnoreCase)
                                     .ToList(),
                                 ControllingVariables = inheritedConditionVariables
                                     .Concat(GetActiveControlVariables(controlStack))
+                                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                                    .ToList(),
+                                ControlExpressions = inheritedConditionExpressions
+                                    .Concat(GetActiveControlExpressions(controlStack))
                                     .Distinct(StringComparer.OrdinalIgnoreCase)
                                     .ToList()
                             });
@@ -497,6 +488,10 @@ namespace WuwaModModifier.Common
                                 activePathSectionNames,
                                 inheritedConditionVariables
                                     .Concat(GetActiveControlVariables(controlStack))
+                                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                                    .ToList(),
+                                inheritedConditionExpressions
+                                    .Concat(GetActiveControlExpressions(controlStack))
                                     .Distinct(StringComparer.OrdinalIgnoreCase)
                                     .ToList(),
                                 drawEntries);
@@ -581,6 +576,32 @@ namespace WuwaModModifier.Common
                 StringComparer.OrdinalIgnoreCase);
         }
 
+        private static IReadOnlyDictionary<string, IReadOnlyList<string>> BuildVariableExpressions(ModConfigDocument document)
+        {
+            var expressionsByVariable = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var statement in document.RootStatements)
+            {
+                TrackVariableExpression(expressionsByVariable, statement);
+            }
+
+            foreach (var section in document.Sections)
+            {
+                foreach (var statement in section.Statements)
+                {
+                    TrackVariableExpression(expressionsByVariable, statement);
+                }
+            }
+
+            return expressionsByVariable.ToDictionary(
+                pair => pair.Key,
+                pair => (IReadOnlyList<string>)pair.Value
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                StringComparer.OrdinalIgnoreCase);
+        }
+
         private static void TrackVariableDependencies(
             IDictionary<string, List<string>> graph,
             ModConfigStatement statement)
@@ -610,6 +631,27 @@ namespace WuwaModModifier.Common
             }
 
             targets.AddRange(dependencies);
+        }
+
+        private static void TrackVariableExpression(
+            IDictionary<string, List<string>> expressionsByVariable,
+            ModConfigStatement statement)
+        {
+            if (string.IsNullOrWhiteSpace(statement.VariableName) ||
+                (statement.Kind != ModConfigStatementKind.VariableAssignment &&
+                 statement.Kind != ModConfigStatementKind.GlobalDeclaration) ||
+                string.IsNullOrWhiteSpace(statement.Value))
+            {
+                return;
+            }
+
+            if (!expressionsByVariable.TryGetValue(statement.VariableName, out var expressions))
+            {
+                expressions = new List<string>();
+                expressionsByVariable[statement.VariableName] = expressions;
+            }
+
+            expressions.Add(statement.Value.Trim());
         }
 
         private static List<string> ResolveControllingParameters(
@@ -704,6 +746,11 @@ namespace WuwaModModifier.Common
             }
         }
 
+        private static IEnumerable<string> GetActiveControlExpressions(IEnumerable<string> controlStack)
+        {
+            return controlStack.Reverse();
+        }
+
         private static void UpdateControlStack(Stack<string> controlStack, string rawText)
         {
             if (rawText.StartsWith("if ", StringComparison.OrdinalIgnoreCase))
@@ -767,6 +814,362 @@ namespace WuwaModModifier.Common
                 statement.Name.Equals(name, StringComparison.OrdinalIgnoreCase))?.Value ?? string.Empty;
         }
 
+        private static List<string> ResolveModelParameters(
+            IEnumerable<string> candidateVariables,
+            IReadOnlyDictionary<string, ModParameterDefinition> parameterLookup)
+        {
+            return candidateVariables
+                .Where(variableName =>
+                    parameterLookup.TryGetValue(variableName, out var parameter) &&
+                    parameter.BoundKeySections.Count == 0 &&
+                    !IsInternalSystemVariable(variableName))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(variableName => variableName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static List<ModVisibilityKeyParameterBinding> ResolveVisibilityKeyParameterBindings(
+            VisibilityDrawEntry drawEntry,
+            IReadOnlyDictionary<string, ModParameterDefinition> parameterLookup,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableExpressionsByVariable)
+        {
+            var bindingsByParameter = new Dictionary<string, ModVisibilityKeyParameterBinding>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var candidateVariable in drawEntry.ControllingVariables
+                         .Where(variableName => !string.IsNullOrWhiteSpace(variableName) && !IsInternalSystemVariable(variableName))
+                         .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                foreach (var bindingPath in ResolveBindingPathsToBoundParameters(candidateVariable, parameterLookup, variableDependencyGraph))
+                {
+                    var keyParameterName = bindingPath[bindingPath.Count - 1];
+                    if (!parameterLookup.TryGetValue(keyParameterName, out var keyParameter))
+                    {
+                        continue;
+                    }
+
+                    if (!bindingsByParameter.TryGetValue(keyParameterName, out var binding))
+                    {
+                        binding = new ModVisibilityKeyParameterBinding
+                        {
+                            ParameterName = keyParameterName
+                        };
+                        bindingsByParameter[keyParameterName] = binding;
+                    }
+
+                    binding.KeySections.AddRange(keyParameter.BoundKeySections);
+                    binding.KeyBindings.AddRange(keyParameter.KeyBindings);
+                    binding.EffectiveValues.AddRange(ResolveEffectiveValuesForBindingPath(
+                        bindingPath,
+                        drawEntry.ControlExpressions,
+                        variableExpressionsByVariable));
+                }
+            }
+
+            return bindingsByParameter.Values
+                .Select(binding =>
+                {
+                    binding.KeySections = binding.KeySections
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    binding.KeyBindings = binding.KeyBindings
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    binding.EffectiveValues = binding.EffectiveValues
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                        .ToList();
+                    return binding;
+                })
+                .OrderBy(binding => binding.ParameterName, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private static IReadOnlyList<IReadOnlyList<string>> ResolveBindingPathsToBoundParameters(
+            string variableName,
+            IReadOnlyDictionary<string, ModParameterDefinition> parameterLookup,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph)
+        {
+            var result = new List<IReadOnlyList<string>>();
+            ResolveBindingPathsToBoundParameters(
+                variableName,
+                parameterLookup,
+                variableDependencyGraph,
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+                new List<string>(),
+                result);
+            return result;
+        }
+
+        private static void ResolveBindingPathsToBoundParameters(
+            string variableName,
+            IReadOnlyDictionary<string, ModParameterDefinition> parameterLookup,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph,
+            HashSet<string> visited,
+            List<string> currentPath,
+            List<IReadOnlyList<string>> result)
+        {
+            if (!visited.Add(variableName))
+            {
+                return;
+            }
+
+            currentPath.Add(variableName);
+            try
+            {
+                if (parameterLookup.TryGetValue(variableName, out var parameter) &&
+                    parameter.BoundKeySections.Count > 0 &&
+                    !IsInternalSystemVariable(variableName))
+                {
+                    result.Add(currentPath.ToList());
+                    return;
+                }
+
+                if (!variableDependencyGraph.TryGetValue(variableName, out var dependencies) || dependencies.Count == 0)
+                {
+                    return;
+                }
+
+                foreach (var dependency in dependencies)
+                {
+                    ResolveBindingPathsToBoundParameters(
+                        dependency,
+                        parameterLookup,
+                        variableDependencyGraph,
+                        visited,
+                        currentPath,
+                        result);
+                }
+            }
+            finally
+            {
+                currentPath.RemoveAt(currentPath.Count - 1);
+                visited.Remove(variableName);
+            }
+        }
+
+        private static IReadOnlyList<string> ResolveEffectiveValuesForBindingPath(
+            IReadOnlyList<string> bindingPath,
+            IReadOnlyCollection<string> controlExpressions,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableExpressionsByVariable)
+        {
+            var currentValues = ExtractRequiredValuesForVariableFromExpressions(controlExpressions, bindingPath[0]);
+
+            for (var index = 0; index < bindingPath.Count - 1; index++)
+            {
+                currentValues = ResolveUpstreamValues(
+                    bindingPath[index],
+                    bindingPath[index + 1],
+                    currentValues,
+                    variableExpressionsByVariable);
+            }
+
+            return currentValues;
+        }
+
+        private static IReadOnlyList<string> ResolveUpstreamValues(
+            string currentVariable,
+            string upstreamVariable,
+            IReadOnlyList<string> currentValues,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableExpressionsByVariable)
+        {
+            if (!variableExpressionsByVariable.TryGetValue(currentVariable, out var expressions))
+            {
+                return currentValues;
+            }
+
+            foreach (var expression in expressions)
+            {
+                var explicitValues = ExtractRequiredValuesForVariableFromExpressions(new[] { expression }, upstreamVariable);
+                if (explicitValues.Count > 0)
+                {
+                    return explicitValues;
+                }
+
+                if (IsDirectVariablePassthrough(expression, upstreamVariable))
+                {
+                    return currentValues;
+                }
+            }
+
+            return currentValues;
+        }
+
+        private static IReadOnlyList<string> ExtractRequiredValuesForVariableFromExpressions(
+            IEnumerable<string> expressions,
+            string variableName)
+        {
+            var values = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var expression in expressions.Where(expression => !string.IsNullOrWhiteSpace(expression)))
+            {
+                foreach (Match match in VariableComparisonRegex.Matches(expression))
+                {
+                    if (match.Groups["var"].Value.Equals(variableName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        values.Add(match.Groups["value"].Value);
+                    }
+                }
+
+                var normalizedExpression = TrimEnclosingParentheses(expression.Trim());
+                if (normalizedExpression.Equals(variableName, StringComparison.OrdinalIgnoreCase))
+                {
+                    values.Add("1");
+                }
+                else if (normalizedExpression.Equals("!" + variableName, StringComparison.OrdinalIgnoreCase))
+                {
+                    values.Add("0");
+                }
+            }
+
+            return values.OrderBy(value => value, StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        private static bool IsDirectVariablePassthrough(string expression, string variableName)
+        {
+            return TrimEnclosingParentheses(expression.Trim())
+                .Equals(variableName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string TrimEnclosingParentheses(string value)
+        {
+            while (value.Length >= 2 && value[0] == '(' && value[^1] == ')')
+            {
+                value = value.Substring(1, value.Length - 2).Trim();
+            }
+
+            return value;
+        }
+
+        private static void ApplyParameterLinksAndKinds(
+            IReadOnlyList<ModParameterDefinition> parameters,
+            IReadOnlyList<ModVisibilityItem> visibilityItems,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph)
+        {
+            var parameterLookup = parameters.ToDictionary(parameter => parameter.Name, StringComparer.OrdinalIgnoreCase);
+            var adjacency = BuildParameterAdjacency(parameterLookup, variableDependencyGraph);
+            var textureParameters = new HashSet<string>(
+                visibilityItems.SelectMany(item => item.ModelParameters),
+                StringComparer.OrdinalIgnoreCase);
+            var linkParameters = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var textureParameter in textureParameters)
+            {
+                foreach (var path in ResolveBindingPathsToBoundParameters(textureParameter, parameterLookup, variableDependencyGraph))
+                {
+                    for (var index = 1; index < path.Count - 1; index++)
+                    {
+                        if (parameterLookup.ContainsKey(path[index]) && !IsInternalSystemVariable(path[index]))
+                        {
+                            linkParameters.Add(path[index]);
+                        }
+                    }
+                }
+            }
+
+            foreach (var parameter in parameters)
+            {
+                parameter.LinkedParameterNames = ResolveLinkedParameterNames(parameter.Name, adjacency);
+
+                if (IsInternalSystemVariable(parameter.Name))
+                {
+                    parameter.Kind = ModConfigParameterKind.InternalSystem;
+                }
+                else if (parameter.BoundKeySections.Count > 0 &&
+                    parameter.ToggleTypes.Count > 0 &&
+                    parameter.ToggleTypes.All(type => type.Equals("hold", StringComparison.OrdinalIgnoreCase)))
+                {
+                    parameter.Kind = ModConfigParameterKind.Unknown;
+                }
+                else if (parameter.BoundKeySections.Count > 0)
+                {
+                    parameter.Kind = ModConfigParameterKind.Toggle;
+                }
+                else if (textureParameters.Contains(parameter.Name))
+                {
+                    parameter.Kind = ModConfigParameterKind.Texture;
+                }
+                else if (linkParameters.Contains(parameter.Name))
+                {
+                    parameter.Kind = ModConfigParameterKind.Link;
+                }
+                else
+                {
+                    parameter.Kind = ModConfigParameterKind.Unknown;
+                }
+            }
+        }
+
+        private static Dictionary<string, HashSet<string>> BuildParameterAdjacency(
+            IReadOnlyDictionary<string, ModParameterDefinition> parameterLookup,
+            IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph)
+        {
+            var adjacency = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var parameterName in parameterLookup.Keys)
+            {
+                adjacency[parameterName] = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+
+            foreach (var pair in variableDependencyGraph)
+            {
+                if (!parameterLookup.ContainsKey(pair.Key) || IsInternalSystemVariable(pair.Key))
+                {
+                    continue;
+                }
+
+                foreach (var dependency in pair.Value)
+                {
+                    if (!parameterLookup.ContainsKey(dependency) || IsInternalSystemVariable(dependency))
+                    {
+                        continue;
+                    }
+
+                    adjacency[pair.Key].Add(dependency);
+                    adjacency[dependency].Add(pair.Key);
+                }
+            }
+
+            return adjacency;
+        }
+
+        private static List<string> ResolveLinkedParameterNames(
+            string parameterName,
+            IReadOnlyDictionary<string, HashSet<string>> adjacency)
+        {
+            if (!adjacency.TryGetValue(parameterName, out var neighbors) || neighbors.Count == 0)
+            {
+                return new List<string>();
+            }
+
+            var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { parameterName };
+            var queue = new Queue<string>(neighbors);
+
+            while (queue.Count > 0)
+            {
+                var current = queue.Dequeue();
+                if (!visited.Add(current) || !adjacency.TryGetValue(current, out var nextNeighbors))
+                {
+                    continue;
+                }
+
+                foreach (var nextNeighbor in nextNeighbors)
+                {
+                    if (!visited.Contains(nextNeighbor))
+                    {
+                        queue.Enqueue(nextNeighbor);
+                    }
+                }
+            }
+
+            return visited
+                .Where(name => !name.Equals(parameterName, StringComparison.OrdinalIgnoreCase))
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         private static ModConfigVisibilityConfidence ClassifyVisibilityConfidence(int drawCallCount, int controllingParameterCount)
         {
             if (drawCallCount == 0)
@@ -802,9 +1205,12 @@ namespace WuwaModModifier.Common
 
         private sealed class VisibilityDrawEntry
         {
+            public int LineNumber { get; set; }
             public string DrawLabel { get; set; } = string.Empty;
+            public string DrawCommandText { get; set; } = string.Empty;
             public List<string> RelatedSectionNames { get; set; } = new List<string>();
             public List<string> ControllingVariables { get; set; } = new List<string>();
+            public List<string> ControlExpressions { get; set; } = new List<string>();
         }
     }
 }
