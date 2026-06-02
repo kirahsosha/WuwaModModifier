@@ -217,7 +217,12 @@ namespace WuwaModModifier.Common
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
-            var kind = ClassifyParameter(parameter.Name, valueOptions, boundKeySections.Count > 0, toggleTypes);
+            var kind = ClassifyParameter(
+                parameter.Name,
+                valueOptions,
+                boundKeySections.Count > 0,
+                parameter.IsDeclaredInConstants,
+                toggleTypes);
 
             return new ModParameterDefinition
             {
@@ -238,6 +243,7 @@ namespace WuwaModModifier.Common
             string variableName,
             IReadOnlyCollection<string> valueOptions,
             bool hasBoundKeySections,
+            bool isDeclaredInConstants,
             IReadOnlyCollection<string> toggleTypes)
         {
             if (IsInternalSystemVariable(variableName))
@@ -252,7 +258,9 @@ namespace WuwaModModifier.Common
 
             if (valueOptions.Count == 0)
             {
-                return hasBoundKeySections ? ModConfigParameterKind.Unknown : ModConfigParameterKind.InternalSystem;
+                return hasBoundKeySections || isDeclaredInConstants
+                    ? ModConfigParameterKind.Unknown
+                    : ModConfigParameterKind.InternalSystem;
             }
 
             if (valueOptions.All(value => value == "0" || value == "1") && valueOptions.Count <= 2)

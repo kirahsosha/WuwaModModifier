@@ -16,6 +16,11 @@ namespace WuwaModModifier.Common
         {
             MessageBox.Show(message, caption ?? "错误", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+
+        public bool Confirm(string message, string? caption = null)
+        {
+            return MessageBox.Show(message, caption ?? "确认", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+        }
     }
 }
 

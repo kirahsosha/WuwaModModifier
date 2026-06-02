@@ -103,6 +103,22 @@ namespace UnitTests
         }
 
         [Fact]
+        public void Analyze_ShouldKeepDeclaredConstantsParameters_AsUnknownBeforeBinding()
+        {
+            var parser = new ModConfigParser(new FileSystemService());
+            var service = new ModConfigAnalysisService(parser);
+
+            var result = service.Analyze(parser.Parse(
+                "[Constants]\n" +
+                "global persist $showHat = 1\n"));
+
+            var parameter = Assert.Single(result.Parameters);
+            Assert.Equal("$showHat", parameter.Name);
+            Assert.True(parameter.IsDeclaredInConstants);
+            Assert.Equal(ModConfigParameterKind.Unknown, parameter.Kind);
+        }
+
+        [Fact]
         public void Analyze_ShouldPropagateIndirectToggleControl_ToVisibilityItems()
         {
             var parser = new ModConfigParser(new FileSystemService());

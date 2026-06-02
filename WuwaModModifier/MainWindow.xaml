@@ -7,78 +7,1422 @@
         xmlns:vm="clr-namespace:WuwaModModifier.ViewModels"
         xmlns:data="clr-namespace:WuwaModModifier.Data.ViewModels"
         mc:Ignorable="d"
-        Title="WuwaModModifier" Height="600" Width="800">
-    <Border Padding="10">
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-            <Grid Grid.Row="0" Height="26">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="84"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="100"/>
-                </Grid.ColumnDefinitions>
-                <Label x:Name="lblModPath" Content="Mod目录：" Grid.Column="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
-                <TextBox x:Name="txtModPath" Grid.Column="1" Margin="0 0 10 0" Text="{Binding ModFolderPath, UpdateSourceTrigger=PropertyChanged}"></TextBox>
-                <Button x:Name="btnModPath" Content="读取Mod目录" Grid.Column="2" Command="{Binding BtnModPathCommand}"/>
+        Title="Wuwa Mod Modifier"
+        Height="720"
+        Width="1280"
+        MinHeight="680"
+        MinWidth="1180"
+        Background="#FFFAF7F1"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <LinearGradientBrush x:Key="WindowBackgroundBrush"
+                             StartPoint="0,0"
+                             EndPoint="1,1">
+            <GradientStop Color="#FFFBF6EF"
+                          Offset="0"/>
+            <GradientStop Color="#FFFAFCFC"
+                          Offset="0.58"/>
+            <GradientStop Color="#FFF4F7F4"
+                          Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="HeroPanelBrush"
+                         Color="#FFFBF7F1"/>
+        <SolidColorBrush x:Key="CardBrush"
+                         Color="#FFFFFEFC"/>
+        <SolidColorBrush x:Key="InsetPanelBrush"
+                         Color="#FFFBFCFC"/>
+        <SolidColorBrush x:Key="HeaderPanelBrush"
+                         Color="#FFF3F7F8"/>
+        <SolidColorBrush x:Key="AccentBrush"
+                         Color="#FF1F6B68"/>
+        <SolidColorBrush x:Key="AccentDarkBrush"
+                         Color="#FF114847"/>
+        <SolidColorBrush x:Key="AccentSoftBrush"
+                         Color="#FFDDEFEB"/>
+        <SolidColorBrush x:Key="WarmBrush"
+                         Color="#FFBD6C3E"/>
+        <SolidColorBrush x:Key="WarmDarkBrush"
+                         Color="#FF944E24"/>
+        <SolidColorBrush x:Key="WarmSoftBrush"
+                         Color="#FFF7E4D6"/>
+        <SolidColorBrush x:Key="GoldSoftBrush"
+                         Color="#FFF6ECCB"/>
+        <SolidColorBrush x:Key="InkBrush"
+                         Color="#FF193448"/>
+        <SolidColorBrush x:Key="MutedTextBrush"
+                         Color="#FF617282"/>
+        <SolidColorBrush x:Key="LineBrush"
+                         Color="#FFD6E1E6"/>
+        <SolidColorBrush x:Key="SoftLineBrush"
+                         Color="#FFEAF0F2"/>
+        <SolidColorBrush x:Key="DisabledBrush"
+                         Color="#FFE4E8EB"/>
+        <SolidColorBrush x:Key="DisabledTextBrush"
+                         Color="#FF94A0AA"/>
+
+        <DropShadowEffect x:Key="SoftShadowEffect"
+                          BlurRadius="16"
+                          ShadowDepth="0"
+                          Opacity="0.08"
+                          Color="#FF32495B"/>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="FontSize"
+                    Value="13"/>
+        </Style>
+
+        <Style TargetType="Label">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="FontSize"
+                    Value="13"/>
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+        </Style>
+
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="FontSize"
+                    Value="13"/>
+            <Setter Property="VerticalContentAlignment"
+                    Value="Center"/>
+        </Style>
+
+        <Style x:Key="HeroTitleStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontFamily"
+                    Value="Bahnschrift"/>
+            <Setter Property="FontSize"
+                    Value="24"/>
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+        </Style>
+
+        <Style x:Key="HeroSubtitleStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="12"/>
+            <Setter Property="Foreground"
+                    Value="{StaticResource MutedTextBrush}"/>
+            <Setter Property="TextWrapping"
+                    Value="Wrap"/>
+        </Style>
+
+        <Style x:Key="SectionEyebrowStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontSize"
+                    Value="12"/>
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+            <Setter Property="Foreground"
+                    Value="{StaticResource MutedTextBrush}"/>
+        </Style>
+
+        <Style x:Key="SectionTitleStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontFamily"
+                    Value="Bahnschrift"/>
+            <Setter Property="FontSize"
+                    Value="19"/>
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+        </Style>
+
+        <Style x:Key="CaptionTextStyle"
+               TargetType="TextBlock">
+            <Setter Property="Foreground"
+                    Value="{StaticResource MutedTextBrush}"/>
+            <Setter Property="FontSize"
+                    Value="12"/>
+            <Setter Property="TextWrapping"
+                    Value="Wrap"/>
+        </Style>
+
+        <Style x:Key="CardBorderStyle"
+               TargetType="Border">
+            <Setter Property="Background"
+                    Value="{StaticResource CardBrush}"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="CornerRadius"
+                    Value="14"/>
+            <Setter Property="Padding"
+                    Value="13"/>
+            <Setter Property="Effect"
+                    Value="{StaticResource SoftShadowEffect}"/>
+        </Style>
+
+        <Style x:Key="InsetBorderStyle"
+               TargetType="Border">
+            <Setter Property="Background"
+                    Value="{StaticResource InsetPanelBrush}"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="CornerRadius"
+                    Value="12"/>
+            <Setter Property="Padding"
+                    Value="11"/>
+        </Style>
+
+        <Style x:Key="BadgeBorderStyle"
+               TargetType="Border">
+            <Setter Property="Padding"
+                    Value="8,3"/>
+            <Setter Property="Margin"
+                    Value="0,0,5,5"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+        </Style>
+
+        <Style x:Key="BaseButtonStyle"
+               TargetType="Button">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="Background"
+                    Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Padding"
+                    Value="12,6"/>
+            <Setter Property="MinHeight"
+                    Value="32"/>
+            <Setter Property="MinWidth"
+                    Value="88"/>
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Margin="{TemplateBinding Padding}"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Opacity"
+                                        Value="0.92"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Opacity"
+                                        Value="0.82"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="{StaticResource DisabledBrush}"/>
+                                <Setter TargetName="ButtonBorder"
+                                        Property="BorderBrush"
+                                        Value="{StaticResource DisabledBrush}"/>
+                                <Setter Property="Foreground"
+                                        Value="{StaticResource DisabledTextBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource BaseButtonStyle}">
+            <Setter Property="Background"
+                    Value="{StaticResource AccentBrush}"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource AccentDarkBrush}"/>
+            <Setter Property="Foreground"
+                    Value="White"/>
+        </Style>
+
+        <Style x:Key="WarmButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource BaseButtonStyle}">
+            <Setter Property="Background"
+                    Value="{StaticResource WarmBrush}"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource WarmDarkBrush}"/>
+            <Setter Property="Foreground"
+                    Value="White"/>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource BaseButtonStyle}"/>
+
+        <Style x:Key="CompactActionButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource SecondaryButtonStyle}">
+            <Setter Property="MinHeight"
+                    Value="28"/>
+            <Setter Property="MinWidth"
+                    Value="68"/>
+            <Setter Property="Padding"
+                    Value="10,4"/>
+            <Setter Property="FontSize"
+                    Value="12"/>
+            <Setter Property="Background"
+                    Value="#FFFBFCFD"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="Background"
+                    Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Padding"
+                    Value="9,6"/>
+            <Setter Property="FontSize"
+                    Value="13"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="TextBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Padding="{TemplateBinding Padding}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused"
+                                     Value="True">
+                                <Setter TargetName="TextBorder"
+                                        Property="BorderBrush"
+                                        Value="{StaticResource AccentBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="TextBorder"
+                                        Property="BorderBrush"
+                                        Value="#FFACC5CB"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="TextBorder"
+                                        Property="Background"
+                                        Value="#FFF4F6F7"/>
+                                <Setter Property="Foreground"
+                                        Value="{StaticResource DisabledTextBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground"
+                    Value="{StaticResource MutedTextBrush}"/>
+            <Setter Property="Margin"
+                    Value="0,0,6,0"/>
+            <Setter Property="Padding"
+                    Value="13,7"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder"
+                                Background="{StaticResource HeaderPanelBrush}"
+                                BorderBrush="{StaticResource LineBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              ContentSource="Header"
+                                              RecognizesAccessKey="True"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected"
+                                     Value="True">
+                                <Setter TargetName="TabBorder"
+                                        Property="Background"
+                                        Value="{StaticResource AccentBrush}"/>
+                                <Setter TargetName="TabBorder"
+                                        Property="BorderBrush"
+                                        Value="{StaticResource AccentDarkBrush}"/>
+                                <Setter Property="Foreground"
+                                        Value="White"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="TabBorder"
+                                        Property="Opacity"
+                                        Value="0.9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="Background"
+                    Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="RowBackground"
+                    Value="#FFFFFEFD"/>
+            <Setter Property="AlternatingRowBackground"
+                    Value="#FFF5F8FA"/>
+            <Setter Property="HorizontalGridLinesBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="VerticalGridLinesBrush"
+                    Value="{StaticResource SoftLineBrush}"/>
+            <Setter Property="RowHeaderWidth"
+                    Value="0"/>
+            <Setter Property="HeadersVisibility"
+                    Value="Column"/>
+            <Setter Property="GridLinesVisibility"
+                    Value="Horizontal"/>
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background"
+                    Value="{StaticResource HeaderPanelBrush}"/>
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+            <Setter Property="FontSize"
+                    Value="12"/>
+            <Setter Property="Padding"
+                    Value="8,6"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="0,0,0,1"/>
+        </Style>
+
+        <Style TargetType="DataGridRow">
+            <Setter Property="MinHeight"
+                    Value="28"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected"
+                         Value="True">
+                    <Setter Property="Background"
+                            Value="#FFDCEBED"/>
+                    <Setter Property="Foreground"
+                            Value="{StaticResource InkBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="DataGridCell">
+            <Setter Property="Padding"
+                    Value="7,4"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Style.Triggers>
+                <Trigger Property="IsSelected"
+                         Value="True">
+                    <Setter Property="Background"
+                            Value="#FFDCEBED"/>
+                    <Setter Property="Foreground"
+                            Value="{StaticResource InkBrush}"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="TreeViewStyle"
+               TargetType="TreeView">
+            <Setter Property="Background"
+                    Value="Transparent"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="Padding"
+                    Value="4"/>
+        </Style>
+
+        <Style x:Key="TreeViewItemStyle"
+               TargetType="TreeViewItem">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="Padding"
+                    Value="3,1"/>
+            <Setter Property="Margin"
+                    Value="0,1,0,1"/>
+            <Setter Property="IsSelected"
+                    Value="{Binding IsSelected, Mode=TwoWay}"/>
+            <Setter Property="ContextMenu">
+                <Setter.Value>
+                    <ContextMenu>
+                        <MenuItem Header="打开MOD文件夹"
+                                  Command="{Binding DataContext.OpenModFolderCommand, RelativeSource={RelativeSource AncestorType=TreeView}}"/>
+                    </ContextMenu>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="RichTextBox">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="Background"
+                    Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Padding"
+                    Value="8"/>
+            <Setter Property="FontFamily"
+                    Value="Consolas"/>
+            <Setter Property="FontSize"
+                    Value="13"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.Background>
+            <StaticResource ResourceKey="WindowBackgroundBrush"/>
+        </Grid.Background>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="12"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="{StaticResource HeroPanelBrush}"
+                BorderBrush="{StaticResource LineBrush}"
+                BorderThickness="1"
+                CornerRadius="16"
+                Padding="14"
+                Effect="{StaticResource SoftShadowEffect}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="10"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="Wuwa Mod Modifier"
+                           Style="{StaticResource HeroTitleStyle}"/>
+
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="600"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid x:Name="HeroLeftPanel"
+                          Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="12"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0"
+                                Style="{StaticResource InsetBorderStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="MOD 根目录"
+                                           Style="{StaticResource SectionEyebrowStyle}"/>
+                                <Grid Grid.Row="1"
+                                      Margin="0,6,0,0"
+                                      Width="572"
+                                      HorizontalAlignment="Left">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBox x:Name="txtModPath"
+                                             Text="{Binding ModFolderPath, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Button x:Name="btnModPath"
+                                            Grid.Column="2"
+                                            Content="读取 Mod 目录"
+                                            Command="{Binding BtnModPathCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="2"
+                                Style="{StaticResource InsetBorderStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="WWMI 根目录"
+                                           Style="{StaticResource SectionEyebrowStyle}"/>
+                                <Grid Grid.Row="1"
+                                      Margin="0,6,0,0"
+                                      Width="572"
+                                      HorizontalAlignment="Left">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBox x:Name="txtWwmiPath"
+                                             Text="{Binding WwmiFolderPath, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Button x:Name="btnWwmiPath"
+                                            Grid.Column="2"
+                                            Content="读取 WWMI 目录"
+                                            Command="{Binding BtnWwmiPathCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="4"
+                                Style="{StaticResource InsetBorderStyle}"
+                                Background="#FFF6F8F8">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="8"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <Grid Grid.Row="0"
+                                      Width="360"
+                                      HorizontalAlignment="Left">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="176"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="176"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0"
+                                            Margin="0"
+                                            Style="{StaticResource BadgeBorderStyle}"
+                                            Background="#FFF1F6F3">
+                                        <CheckBox x:Name="cbxIgnoreWeapon"
+                                                  Content="忽略武器 MOD"
+                                                  IsChecked="{Binding IgnoreWeapon}"/>
+                                    </Border>
+                                    <Border Grid.Column="2"
+                                            Margin="0"
+                                            Style="{StaticResource BadgeBorderStyle}"
+                                            Background="#FFF4F7FA">
+                                        <CheckBox x:Name="cbxIgnoreOther"
+                                                  Content="忽略 Other 文件夹"
+                                                  IsChecked="{Binding IgnoreOther}"/>
+                                    </Border>
+                                </Grid>
+
+                                <Grid Grid.Row="2"
+                                      Width="572"
+                                      HorizontalAlignment="Left">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button x:Name="btnLoadSelectedMods"
+                                            Grid.Row="0"
+                                            Grid.Column="0"
+                                            Content="加载已选择 MOD"
+                                            Command="{Binding BtnLoadSelectedModsCommand}"
+                                            Style="{StaticResource PrimaryButtonStyle}"/>
+                                    <Button x:Name="btnRandomLoadAllMods"
+                                            Grid.Row="0"
+                                            Grid.Column="2"
+                                            Content="随机加载 MOD"
+                                            Command="{Binding BtnRandomLoadAllModsCommand}"
+                                            Style="{StaticResource WarmButtonStyle}"/>
+                                    <Button x:Name="btnClearAllMods"
+                                            Grid.Row="0"
+                                            Grid.Column="4"
+                                            Content="清空已加载 MOD"
+                                            Command="{Binding BtnClearAllModsCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
+                                    <Button x:Name="btnOpenVersionSync"
+                                            Grid.Row="0"
+                                            Grid.Column="6"
+                                            Content="版本同步"
+                                            IsEnabled="{Binding CanOpenVersionSync}"
+                                            Click="btnOpenVersionSync_Click"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <Border Grid.Column="2"
+                            Style="{StaticResource CardBorderStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="10"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="目录浏览"
+                                           Style="{StaticResource SectionEyebrowStyle}"/>
+                                <TextBlock Margin="0,6,0,0"
+                                           Text="勾选需要批量操作的项，右键可以直接打开目标 MOD 文件夹。"
+                                           Style="{StaticResource CaptionTextStyle}"/>
+                            </StackPanel>
+
+                            <Border Grid.Row="2"
+                                    Height="192"
+                                    VerticalAlignment="Top"
+                                    Style="{StaticResource InsetBorderStyle}">
+                                <TreeView x:Name="tvModDirectory"
+                                          ItemsSource="{Binding DirectoryItems}"
+                                          SelectedItemChanged="tvModDirectory_SelectedItemChanged"
+                                          PreviewMouseRightButtonDown="tvModDirectory_PreviewMouseRightButtonDown"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                          Style="{StaticResource TreeViewStyle}">
+                                    <TreeView.ItemTemplate>
+                                        <HierarchicalDataTemplate DataType="{x:Type data:DirectoryItemViewModel}"
+                                                                  ItemsSource="{Binding Children}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <CheckBox IsChecked="{Binding IsChecked}"
+                                                          VerticalAlignment="Center"
+                                                          Margin="0,0,6,0"/>
+                                                <TextBlock Text="{Binding Name}"
+                                                           VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </HierarchicalDataTemplate>
+                                    </TreeView.ItemTemplate>
+                                    <TreeView.ItemContainerStyle>
+                                        <StaticResource ResourceKey="TreeViewItemStyle"/>
+                                    </TreeView.ItemContainerStyle>
+                                </TreeView>
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Grid>
             </Grid>
-            <Grid Grid.Row="1" Margin="0 10 0 0" Height="26">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="84"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="100"/>
-                </Grid.ColumnDefinitions>
-                <Label x:Name="lblWwmiPath" Content="WWMI目录：" Grid.Column="0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" />
-                <TextBox x:Name="txtWwmiPath" Grid.Column="1" Margin="0,0,10,0" Text="{Binding WwmiFolderPath, UpdateSourceTrigger=PropertyChanged}"></TextBox>
-                <Button x:Name="btnWwmiPath" Content="读取WWMI目录" Grid.Column="2" Command="{Binding BtnWwmiPathCommand}"></Button>
-            </Grid>
-            <Grid Grid.Row="2" Margin="0 10 0 0" Height="26">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="130"/>
-                    <ColumnDefinition Width="130"/>
-                    <ColumnDefinition Width="130"/>
-                    <ColumnDefinition Width="130"/>
-                    <ColumnDefinition Width="130"/>
-                </Grid.ColumnDefinitions>
-                <CheckBox x:Name="cbxIgnoreWeapon" Content="忽略武器MOD" Grid.Column="1" Margin="10 0 0 0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" IsChecked="{Binding IgnoreWeapon}"/>
-                <CheckBox x:Name="cbxIgnoreOther" Content="忽略Other文件夹" Grid.Column="2" Margin="10 0 0 0" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" IsChecked="{Binding IgnoreOther}"/>
-                <Button x:Name="btnLoadSelectedMods" Content="加载已选择MOD" Grid.Column="3" Margin="10 0 0 0" Command="{Binding BtnLoadSelectedModsCommand}"></Button>
-                <Button x:Name="btnRandomLoadAllMods" Content="随机加载MOD" Grid.Column="4" Margin="10 0 0 0" Command="{Binding BtnRandomLoadAllModsCommand}" ></Button>
-                <Button x:Name="btnClearAllMods" Content="清空已加载MOD" Grid.Column="5" Margin="10 0 0 0" Command="{Binding BtnClearAllModsCommand}"></Button>
-            </Grid>
-            <TreeView x:Name="tvModDirectory"
-                      Grid.Row="3"
-                      Margin="0 10 0 0"
-                      ItemsSource="{Binding DirectoryItems}"
-                      PreviewMouseRightButtonDown="tvModDirectory_PreviewMouseRightButtonDown">
-                <TreeView.ItemTemplate>
-                    <HierarchicalDataTemplate DataType="{x:Type data:DirectoryItemViewModel}" ItemsSource="{Binding Children}">
-                        <StackPanel Orientation="Horizontal">
-                            <CheckBox IsChecked="{Binding IsChecked}" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="580"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Style="{StaticResource CardBorderStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0"
+                            Style="{StaticResource InsetBorderStyle}"
+                            Background="{StaticResource AccentSoftBrush}">
+                        <StackPanel>
+                            <TextBlock Text="配置分析"
+                                       Style="{StaticResource SectionEyebrowStyle}"/>
+                            <TextBlock Margin="0,4,0,0"
+                                       Text="{Binding SelectedDirectoryItem.Name, TargetNullValue=未选择 MOD}"
+                                       Style="{StaticResource SectionTitleStyle}"/>
+                            <TextBlock Margin="0,8,0,0"
+                                       Text="{Binding SelectedConfigAnalysisStatus}"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Margin="0,6,0,0"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="{Binding SelectedConfigPath, StringFormat=配置文件：{0}}"/>
                         </StackPanel>
-                    </HierarchicalDataTemplate>
-                </TreeView.ItemTemplate>
-                <TreeView.ItemContainerStyle>
-                    <Style TargetType="TreeViewItem">
-                        <Setter Property="IsSelected" Value="{Binding IsSelected, Mode=TwoWay}"/>
-                        <Setter Property="ContextMenu">
-                            <Setter.Value>
-                                <!-- ContextMenu 的 DataContext 不是 TreeView，所以通过 TreeView.DataContext 找命令 -->
-                                <ContextMenu>
-                                    <MenuItem Header="打开MOD文件夹"
-                                              Command="{Binding DataContext.OpenModFolderCommand, RelativeSource={RelativeSource AncestorType=TreeView}}"/>
-                                </ContextMenu>
-                            </Setter.Value>
-                        </Setter>
-                    </Style>
-                </TreeView.ItemContainerStyle>
-            </TreeView>
+                    </Border>
+
+                    <Border Grid.Row="2"
+                            Style="{StaticResource InsetBorderStyle}"
+                            Background="#FFF8F3EE">
+                        <StackPanel>
+                            <TextBlock Text="{Binding SelectedConfigEditStatus}"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Margin="0,6,0,0"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="{Binding ConfigBufferStateText}"/>
+
+                            <Grid Margin="0,10,0,0">
+                                <Grid Width="528"
+                                      HorizontalAlignment="Left">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button Grid.Column="0"
+                                            Content="保存到 Mod"
+                                            Command="{Binding SaveConfigToModCommand}"
+                                            Style="{StaticResource CompactActionButtonStyle}"/>
+                                    <Button Grid.Column="2"
+                                            Content="保存到 WWMI"
+                                            Command="{Binding SaveConfigToWwmiCommand}"
+                                            Style="{StaticResource CompactActionButtonStyle}"/>
+                                    <Button Grid.Column="4"
+                                            Content="Mod 同步到 WWMI"
+                                            Command="{Binding SyncModToWwmiCommand}"
+                                            Style="{StaticResource CompactActionButtonStyle}"/>
+                                    <Button Grid.Column="6"
+                                            Content="WWMI 同步到 Mod"
+                                            Command="{Binding SyncWwmiToModCommand}"
+                                            Style="{StaticResource CompactActionButtonStyle}"/>
+                                </Grid>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <TabControl Grid.Row="4">
+                        <TabItem Header="按键切换">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <Border Margin="6,8,6,0"
+                                        Style="{StaticResource InsetBorderStyle}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel>
+                                            <TextBlock Text="当前按键节"
+                                                       Style="{StaticResource SectionEyebrowStyle}"/>
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Text="{Binding SelectedToggleItem.SectionName, TargetNullValue=未选择按键项, FallbackValue=未选择按键项}"
+                                                       FontWeight="SemiBold"/>
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Row="1"
+                                                   Margin="0,8,0,0"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Text="快捷键内容"/>
+                                        <TextBox Grid.Row="2"
+                                                 Margin="0,5,0,0"
+                                                 MinHeight="32"
+                                                 AcceptsReturn="True"
+                                                 TextWrapping="Wrap"
+                                                 VerticalScrollBarVisibility="Auto"
+                                                 Text="{Binding ToggleKeyBindingEditorText, UpdateSourceTrigger=PropertyChanged}"/>
+
+                                        <StackPanel Grid.Row="3"
+                                                    Margin="0,10,0,0">
+                                            <WrapPanel>
+                                                <Button Margin="0,0,8,0"
+                                                        Content="应用快捷键修改"
+                                                        Command="{Binding ApplyToggleKeyBindingsCommand}"
+                                                        Style="{StaticResource PrimaryButtonStyle}"/>
+                                                <Button Content="按 toggle.ini 批量标准化"
+                                                        Command="{Binding ApplyStandardizationCommand}"
+                                                        Style="{StaticResource WarmButtonStyle}"/>
+                                            </WrapPanel>
+
+                                            <TextBlock Margin="0,12,0,0"
+                                                       Text="新增按键"
+                                                       Style="{StaticResource SectionEyebrowStyle}"/>
+                                            <StackPanel Margin="0,8,0,0"
+                                                        Orientation="Horizontal">
+                                                <RadioButton Margin="0,0,14,0"
+                                                             Content="绑定现有参数"
+                                                             IsChecked="{Binding UseExistingToggleCreationParameter}"/>
+                                                <RadioButton Content="新建参数并绑定"
+                                                             IsChecked="{Binding UseNewToggleCreationParameter}"/>
+                                            </StackPanel>
+
+                                            <ComboBox Margin="0,8,0,0"
+                                                      ItemsSource="{Binding ToggleCreationParameterCandidates}"
+                                                      SelectedItem="{Binding SelectedToggleCreationParameter, Mode=TwoWay}"
+                                                      DisplayMemberPath="VisibilityBindingDisplayText"
+                                                      IsEnabled="{Binding UseExistingToggleCreationParameter}"/>
+
+                                            <Grid Margin="0,8,0,0">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="12"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock Grid.Row="0"
+                                                           Grid.Column="0"
+                                                           Text="新参数名"
+                                                           Style="{StaticResource CaptionTextStyle}"/>
+                                                <TextBlock Grid.Row="0"
+                                                           Grid.Column="2"
+                                                           Text="新快捷键"
+                                                           Style="{StaticResource CaptionTextStyle}"/>
+
+                                                <TextBox Grid.Row="1"
+                                                         Grid.Column="0"
+                                                         Margin="0,4,0,0"
+                                                         Text="{Binding ToggleCreationNewParameterName, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsEnabled="{Binding UseNewToggleCreationParameter}"
+                                                         ToolTip="例如 $showHat"/>
+                                                <ComboBox Grid.Row="1"
+                                                          Grid.Column="2"
+                                                          Margin="0,4,0,0"
+                                                          MinWidth="180"
+                                                          ItemsSource="{Binding ToggleCreationAvailableKeyOptions}"
+                                                          Text="{Binding ToggleCreationKeyBindingsText, UpdateSourceTrigger=PropertyChanged}"
+                                                          IsEditable="True"
+                                                          IsTextSearchEnabled="False"
+                                                          ToolTip="可从未使用标准快捷键中选择，也可直接输入自定义快捷键"/>
+                                            </Grid>
+
+                                            <Button Margin="0,10,0,0"
+                                                    HorizontalAlignment="Left"
+                                                    Content="新增按键绑定"
+                                                    Command="{Binding CreateToggleCommand}"
+                                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <DataGrid Grid.Row="1"
+                                          Margin="6,6,6,4"
+                                          ItemsSource="{Binding SelectedToggleItems}"
+                                          SelectedItem="{Binding SelectedToggleItem, Mode=TwoWay}"
+                                          PreviewMouseLeftButtonUp="ConfigAnalysisGrid_PreviewMouseLeftButtonUp"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="节名"
+                                                            Binding="{Binding SectionName}"
+                                                            Width="120"/>
+                                        <DataGridTextColumn Header="类型"
+                                                            Binding="{Binding ToggleType}"
+                                                            Width="70"/>
+                                        <DataGridTextColumn Header="按键"
+                                                            Binding="{Binding KeyBindingsText}"
+                                                            Width="170"/>
+                                        <DataGridTextColumn Header="参数和值"
+                                                            Binding="{Binding TargetsText}"
+                                                            Width="220"/>
+                                        <DataGridCheckBoxColumn Header="可标准化"
+                                                                Binding="{Binding IsStandardizationCandidate}"
+                                                                Width="80"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="参数列表">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <Border Margin="6,8,6,0"
+                                        Style="{StaticResource InsetBorderStyle}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel>
+                                            <TextBlock Text="当前参数"
+                                                       Style="{StaticResource SectionEyebrowStyle}"/>
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Text="{Binding SelectedParameterItem.Name, TargetNullValue=未选择参数, FallbackValue=未选择参数}"
+                                                       FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                        <TextBlock Grid.Row="1"
+                                                   Margin="0,8,0,0"
+                                                   Style="{StaticResource CaptionTextStyle}"
+                                                   Text="新的参数名"/>
+                                        <TextBox Grid.Row="2"
+                                                 Margin="0,5,0,0"
+                                                 Text="{Binding ParameterRenameText, UpdateSourceTrigger=PropertyChanged}"/>
+                                        <StackPanel Grid.Row="3"
+                                                    Margin="0,10,0,0">
+                                            <Button HorizontalAlignment="Left"
+                                                    Content="应用参数重命名"
+                                                    Command="{Binding RenameParameterCommand}"
+                                                    Style="{StaticResource PrimaryButtonStyle}"/>
+
+                                            <TextBlock Margin="0,12,0,0"
+                                                       Text="新增参数"
+                                                       Style="{StaticResource SectionEyebrowStyle}"/>
+                                            <TextBox Margin="0,6,0,0"
+                                                     Text="{Binding ParameterCreationName, UpdateSourceTrigger=PropertyChanged}"
+                                                     ToolTip="例如 $showHat"/>
+                                        </StackPanel>
+                                        <Grid Grid.Row="4"
+                                              Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Button Grid.Column="0"
+                                                    HorizontalAlignment="Left"
+                                                    Content="新增参数"
+                                                    Command="{Binding CreateParameterCommand}"
+                                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                                            <CheckBox Grid.Column="2"
+                                                      VerticalAlignment="Center"
+                                                      Content="不显示系统参数"
+                                                      IsChecked="{Binding HideInternalSystemParameters}"/>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
+                                <DataGrid Grid.Row="1"
+                                          Margin="6,6,6,4"
+                                          ItemsSource="{Binding SelectedParameterItemsView}"
+                                          SelectedItem="{Binding SelectedParameterItem, Mode=TwoWay}"
+                                          PreviewMouseLeftButtonUp="ConfigAnalysisGrid_PreviewMouseLeftButtonUp"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="参数"
+                                                            Binding="{Binding Name}"
+                                                            Width="140"/>
+                                        <DataGridTextColumn Header="默认值"
+                                                            Binding="{Binding DefaultValue}"
+                                                            Width="90"/>
+                                        <DataGridTextColumn Header="类型"
+                                                            Binding="{Binding KindText}"
+                                                            Width="90"/>
+                                        <DataGridTextColumn Header="可选值"
+                                                            Binding="{Binding ValueOptionsText}"
+                                                            Width="160"/>
+                                        <DataGridTextColumn Header="绑定节"
+                                                            Binding="{Binding BoundKeySectionsText}"
+                                                            Width="150"/>
+                                        <DataGridTextColumn Header="按键"
+                                                            Binding="{Binding KeyBindingsText}"
+                                                            Width="180"/>
+                                        <DataGridCheckBoxColumn Header="可改名"
+                                                                Binding="{Binding CanRename}"
+                                                                Width="70"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="模型显示">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <Border Margin="6,8,6,0"
+                                        Style="{StaticResource InsetBorderStyle}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel>
+                                            <TextBlock Text="当前模型显示项"
+                                                       Style="{StaticResource SectionEyebrowStyle}"/>
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Text="{Binding SelectedVisibilityItem.DrawLabelsText, TargetNullValue=未选择模型显示项, FallbackValue=未选择模型显示项}"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Margin="0,6,0,0"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Text="{Binding SelectedVisibilityItem.CanToggleSafely, StringFormat=安全改写：{0}, TargetNullValue=安全改写：False, FallbackValue=安全改写：False}"/>
+                                        </StackPanel>
+                                        <CheckBox Grid.Row="1"
+                                                  Margin="0,8,0,0"
+                                                  Content="目标状态设为显示"
+                                                  IsChecked="{Binding VisibilityTargetIsVisible}"/>
+                                        <Button Grid.Row="2"
+                                                Margin="0,10,0,0"
+                                                HorizontalAlignment="Left"
+                                                Content="应用模型显示修改"
+                                                Command="{Binding ApplyVisibilityChangeCommand}"
+                                                Style="{StaticResource PrimaryButtonStyle}"/>
+
+                                        <StackPanel Grid.Row="3"
+                                                    Margin="0,14,0,0">
+                                            <TextBlock Text="模型绑定"
+                                                       Style="{StaticResource SectionEyebrowStyle}"/>
+                                            <TextBlock Margin="0,4,0,0"
+                                                       Style="{StaticResource CaptionTextStyle}"
+                                                       Text="{Binding VisibilityBindingStatusText}"/>
+
+                                            <StackPanel Margin="0,8,0,0"
+                                                        Orientation="Horizontal">
+                                                <RadioButton Margin="0,0,14,0"
+                                                             Content="现有参数"
+                                                             IsChecked="{Binding UseExistingVisibilityParameterBinding}"
+                                                             IsEnabled="{Binding CanBindSelectedVisibilityItem}"/>
+                                                <RadioButton Margin="0,0,14,0"
+                                                             Content="现有按键"
+                                                             IsChecked="{Binding UseExistingVisibilityToggleBinding}"
+                                                             IsEnabled="{Binding CanBindSelectedVisibilityItem}"/>
+                                                <RadioButton Content="新建参数+按键"
+                                                             IsChecked="{Binding UseNewVisibilityBinding}"
+                                                             IsEnabled="{Binding CanCreateNewVisibilityBinding}"/>
+                                            </StackPanel>
+
+                                            <Grid Margin="0,8,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="12"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <ComboBox Grid.Column="0"
+                                                          ItemsSource="{Binding VisibilityBindingParameterCandidates}"
+                                                          SelectedItem="{Binding SelectedVisibilityBindingParameter, Mode=TwoWay}"
+                                                          DisplayMemberPath="VisibilityBindingDisplayText"
+                                                          IsEnabled="{Binding UseExistingVisibilityParameterBinding}"/>
+
+                                                <ComboBox Grid.Column="2"
+                                                          ItemsSource="{Binding VisibilityBindingToggleCandidates}"
+                                                          SelectedItem="{Binding SelectedVisibilityBindingToggle, Mode=TwoWay}"
+                                                          DisplayMemberPath="VisibilityBindingDisplayText"
+                                                          IsEnabled="{Binding UseExistingVisibilityToggleBinding}"/>
+                                            </Grid>
+
+                                            <Grid Margin="0,8,0,0">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="12"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock Grid.Row="0"
+                                                           Grid.Column="0"
+                                                           Text="新参数名"
+                                                           Style="{StaticResource CaptionTextStyle}"/>
+                                                <TextBlock Grid.Row="0"
+                                                           Grid.Column="2"
+                                                           Text="新快捷键"
+                                                           Style="{StaticResource CaptionTextStyle}"/>
+
+                                                <TextBox Grid.Row="1"
+                                                         Grid.Column="0"
+                                                         Margin="0,4,0,0"
+                                                         Text="{Binding VisibilityBindingNewParameterName, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsEnabled="{Binding UseNewVisibilityBinding}"
+                                                         ToolTip="例如 $showHat"/>
+                                                <ComboBox Grid.Row="1"
+                                                          Grid.Column="2"
+                                                          Margin="0,4,0,0"
+                                                          MinWidth="180"
+                                                          ItemsSource="{Binding VisibilityBindingAvailableKeyOptions}"
+                                                          Text="{Binding VisibilityBindingNewKeyBindingsText, UpdateSourceTrigger=PropertyChanged}"
+                                                          IsEditable="True"
+                                                          IsTextSearchEnabled="False"
+                                                          IsEnabled="{Binding UseNewVisibilityBinding}"
+                                                          ToolTip="可从未使用标准快捷键中选择，也可直接输入自定义快捷键"/>
+                                            </Grid>
+
+                                            <Button Margin="0,10,0,0"
+                                                    HorizontalAlignment="Left"
+                                                    Content="应用模型绑定"
+                                                    Command="{Binding ApplyVisibilityBindingCommand}"
+                                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <DataGrid Grid.Row="1"
+                                          Margin="6,6,6,4"
+                                          ItemsSource="{Binding SelectedVisibilityItems}"
+                                          SelectedItem="{Binding SelectedVisibilityItem, Mode=TwoWay}"
+                                          PreviewMouseLeftButtonUp="ConfigAnalysisGrid_PreviewMouseLeftButtonUp"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          CanUserAddRows="False"
+                                          CanUserDeleteRows="False"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="组件"
+                                                            Binding="{Binding SectionName}"
+                                                            Width="160"/>
+                                        <DataGridTextColumn Header="置信度"
+                                                            Binding="{Binding ConfidenceText}"
+                                                            Width="80"/>
+                                        <DataGridTextColumn Header="Draw数"
+                                                            Binding="{Binding DrawCallCount}"
+                                                            Width="70"/>
+                                        <DataGridTextColumn Header="标签"
+                                                            Binding="{Binding DrawLabelsText}"
+                                                            Width="260"/>
+                                        <DataGridTextColumn Header="控制参数"
+                                                            Binding="{Binding ControllingParametersText}"
+                                                            Width="180"/>
+                                        <DataGridTextColumn Header="控制按键"
+                                                            Binding="{Binding ControllingKeyBindingsText}"
+                                                            Width="220"/>
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </Grid>
+                        </TabItem>
+
+                        <TabItem Header="修改历史">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="10"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <Border Grid.Row="0"
+                                        Margin="6,8,6,0"
+                                        Style="{StaticResource InsetBorderStyle}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Text="配置修改历史"
+                                                   Style="{StaticResource SectionEyebrowStyle}"/>
+                                        <DataGrid Grid.Row="1"
+                                                  Margin="0,8,0,0"
+                                                  ItemsSource="{Binding ModificationHistoryItems}"
+                                                  AutoGenerateColumns="False"
+                                                  IsReadOnly="True"
+                                                  CanUserAddRows="False"
+                                                  CanUserDeleteRows="False"
+                                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                                  ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="时间"
+                                                                    Binding="{Binding TimestampText}"
+                                                                    Width="88"/>
+                                                <DataGridTextColumn Header="类型"
+                                                                    Binding="{Binding OperationTypeText}"
+                                                                    Width="120"/>
+                                                <DataGridTextColumn Header="对象"
+                                                                    Binding="{Binding TargetText}"
+                                                                    Width="180"/>
+                                                <DataGridTextColumn Header="摘要"
+                                                                    Binding="{Binding SummaryText}"
+                                                                    Width="320"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Row="2"
+                                        Margin="6,0,6,4"
+                                        Style="{StaticResource InsetBorderStyle}"
+                                        Background="#FFF8F3EE">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+
+                                        <TextBlock Text="最近一次标准化结果"
+                                                   Style="{StaticResource SectionEyebrowStyle}"/>
+                                        <DataGrid Grid.Row="1"
+                                                  Margin="0,8,0,0"
+                                                  ItemsSource="{Binding LatestStandardizationItems}"
+                                                  AutoGenerateColumns="False"
+                                                  IsReadOnly="True"
+                                                  CanUserAddRows="False"
+                                                  CanUserDeleteRows="False"
+                                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                                  ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="结果"
+                                                                    Binding="{Binding StatusText}"
+                                                                    Width="110"/>
+                                                <DataGridTextColumn Header="原节名"
+                                                                    Binding="{Binding OriginalSectionName}"
+                                                                    Width="150"/>
+                                                <DataGridTextColumn Header="目标节名"
+                                                                    Binding="{Binding FinalSectionName}"
+                                                                    Width="150"/>
+                                                <DataGridTextColumn Header="原变量"
+                                                                    Binding="{Binding OriginalVariableName}"
+                                                                    Width="130"/>
+                                                <DataGridTextColumn Header="目标变量"
+                                                                    Binding="{Binding FinalVariableName}"
+                                                                    Width="130"/>
+                                                <DataGridTextColumn Header="标准按键"
+                                                                    Binding="{Binding TargetKeyBindingsText}"
+                                                                    Width="220"/>
+                                                <DataGridTextColumn Header="说明"
+                                                                    Binding="{Binding Reason}"
+                                                                    Width="300"/>
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Style="{StaticResource CardBorderStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0"
+                            Style="{StaticResource InsetBorderStyle}"
+                            Background="#FFF6EDE4">
+                        <StackPanel>
+                            <TextBlock Text="配置文本编辑"
+                                       Style="{StaticResource SectionEyebrowStyle}"/>
+                            <TextBlock Margin="0,4,0,0"
+                                       Text="{Binding SelectedDirectoryItem.Name, TargetNullValue=未选择 MOD}"
+                                       Style="{StaticResource SectionTitleStyle}"/>
+                            <TextBlock Margin="0,8,0,0"
+                                       Style="{StaticResource CaptionTextStyle}"
+                                       Text="{Binding SelectedConfigPath, StringFormat=当前文件：{0}}"/>
+                            <TextBlock Margin="0,6,0,0"
+                                       Text="{Binding RawConfigEditorStatusText}"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Grid.Row="2"
+                            Style="{StaticResource InsetBorderStyle}"
+                            Background="#FFF8FBFC">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <WrapPanel>
+                                <Border Style="{StaticResource BadgeBorderStyle}"
+                                        Background="#FFF4D8">
+                                    <TextBlock Text="按键"
+                                               FontWeight="SemiBold"/>
+                                </Border>
+                                <Border Style="{StaticResource BadgeBorderStyle}"
+                                        Background="#FFDDF2FF">
+                                    <TextBlock Text="参数"
+                                               FontWeight="SemiBold"/>
+                                </Border>
+                                <Border Style="{StaticResource BadgeBorderStyle}"
+                                        Background="#FFDFF3E4">
+                                    <TextBlock Text="模型"
+                                               FontWeight="SemiBold"/>
+                                </Border>
+                            </WrapPanel>
+
+                            <DockPanel Grid.Row="1"
+                                       Margin="0,8,0,0"
+                                       LastChildFill="False">
+                                <TextBlock DockPanel.Dock="Left"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           Text="文本不自动换行，可直接横向滚动查看长行。"/>
+                                <Button Content="保存到当前文件"
+                                        Command="{Binding SaveRawConfigCommand}"
+                                        Style="{StaticResource CompactActionButtonStyle}"/>
+                            </DockPanel>
+                        </Grid>
+                    </Border>
+
+                    <RichTextBox x:Name="rtbConfigEditor"
+                                 Grid.Row="4"
+                                 Margin="0,0,0,0"
+                                 AcceptsTab="True"
+                                 SpellCheck.IsEnabled="False"
+                                 HorizontalScrollBarVisibility="Auto"
+                                 VerticalScrollBarVisibility="Auto"
+                                 TextChanged="rtbConfigEditor_TextChanged"/>
+                </Grid>
+            </Border>
         </Grid>
-    </Border>
+    </Grid>
 </Window>

@@ -1,0 +1,696 @@
+<Window x:Class="WuwaModModifier.VersionSyncWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:WuwaModModifier.ViewModels"
+        mc:Ignorable="d"
+        Title="版本更新同步"
+        Height="840"
+        Width="1460"
+        MinHeight="760"
+        MinWidth="1280"
+        Background="#FFFAF7F1"
+        WindowStartupLocation="CenterOwner"
+        UseLayoutRounding="True">
+    <Window.Resources>
+        <SolidColorBrush x:Key="CardBrush"
+                         Color="#FFFFFEFC"/>
+        <SolidColorBrush x:Key="InsetBrush"
+                         Color="#FFFBFCFC"/>
+        <SolidColorBrush x:Key="HeaderBrush"
+                         Color="#FFF3F7F8"/>
+        <SolidColorBrush x:Key="LineBrush"
+                         Color="#FFD6E1E6"/>
+        <SolidColorBrush x:Key="InkBrush"
+                         Color="#FF193448"/>
+        <SolidColorBrush x:Key="MutedBrush"
+                         Color="#FF617282"/>
+        <SolidColorBrush x:Key="AccentBrush"
+                         Color="#FF1F6B68"/>
+        <SolidColorBrush x:Key="AccentDarkBrush"
+                         Color="#FF114847"/>
+        <SolidColorBrush x:Key="AccentSoftBrush"
+                         Color="#FFDDEFEB"/>
+        <SolidColorBrush x:Key="WarmBrush"
+                         Color="#FFBD6C3E"/>
+        <SolidColorBrush x:Key="WarmDarkBrush"
+                         Color="#FF944E24"/>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="FontSize"
+                    Value="13"/>
+        </Style>
+
+        <Style x:Key="SectionTitleStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontFamily"
+                    Value="Bahnschrift"/>
+            <Setter Property="FontSize"
+                    Value="19"/>
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+        </Style>
+
+        <Style x:Key="CaptionStyle"
+               TargetType="TextBlock">
+            <Setter Property="Foreground"
+                    Value="{StaticResource MutedBrush}"/>
+            <Setter Property="FontSize"
+                    Value="12"/>
+            <Setter Property="TextWrapping"
+                    Value="Wrap"/>
+        </Style>
+
+        <Style x:Key="CardBorderStyle"
+               TargetType="Border">
+            <Setter Property="Background"
+                    Value="{StaticResource CardBrush}"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="CornerRadius"
+                    Value="14"/>
+            <Setter Property="Padding"
+                    Value="13"/>
+        </Style>
+
+        <Style x:Key="InsetBorderStyle"
+               TargetType="Border">
+            <Setter Property="Background"
+                    Value="{StaticResource InsetBrush}"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="CornerRadius"
+                    Value="12"/>
+            <Setter Property="Padding"
+                    Value="11"/>
+        </Style>
+
+        <Style x:Key="BaseButtonStyle"
+               TargetType="Button">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="Background"
+                    Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Padding"
+                    Value="12,6"/>
+            <Setter Property="MinHeight"
+                    Value="32"/>
+            <Setter Property="MinWidth"
+                    Value="96"/>
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource BaseButtonStyle}">
+            <Setter Property="Background"
+                    Value="{StaticResource AccentBrush}"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource AccentDarkBrush}"/>
+            <Setter Property="Foreground"
+                    Value="White"/>
+        </Style>
+
+        <Style x:Key="WarmButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource BaseButtonStyle}">
+            <Setter Property="Background"
+                    Value="{StaticResource WarmBrush}"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource WarmDarkBrush}"/>
+            <Setter Property="Foreground"
+                    Value="White"/>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="Background"
+                    Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Padding"
+                    Value="9,6"/>
+            <Setter Property="FontSize"
+                    Value="13"/>
+        </Style>
+
+        <Style TargetType="RichTextBox">
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="Background"
+                    Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Padding"
+                    Value="8"/>
+            <Setter Property="FontSize"
+                    Value="13"/>
+            <Setter Property="FontFamily"
+                    Value="Consolas"/>
+        </Style>
+
+        <Style TargetType="DataGrid">
+            <Setter Property="Background"
+                    Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="RowBackground"
+                    Value="#FFFFFEFD"/>
+            <Setter Property="AlternatingRowBackground"
+                    Value="#FFF5F8FA"/>
+            <Setter Property="HorizontalGridLinesBrush"
+                    Value="{StaticResource LineBrush}"/>
+            <Setter Property="VerticalGridLinesBrush"
+                    Value="#FFEAF0F2"/>
+            <Setter Property="RowHeaderWidth"
+                    Value="0"/>
+            <Setter Property="HeadersVisibility"
+                    Value="Column"/>
+            <Setter Property="GridLinesVisibility"
+                    Value="Horizontal"/>
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader">
+            <Setter Property="Background"
+                    Value="{StaticResource HeaderBrush}"/>
+            <Setter Property="Foreground"
+                    Value="{StaticResource InkBrush}"/>
+            <Setter Property="FontWeight"
+                    Value="SemiBold"/>
+            <Setter Property="FontSize"
+                    Value="12"/>
+            <Setter Property="Padding"
+                    Value="8,6"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="10"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Style="{StaticResource CardBorderStyle}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="10"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="6"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="版本更新同步"
+                           Style="{StaticResource SectionTitleStyle}"/>
+
+                <Grid Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Style="{StaticResource InsetBorderStyle}">
+                        <StackPanel>
+                            <TextBlock Text="已导入角色目录"
+                                       FontWeight="SemiBold"/>
+                            <TextBox Margin="0,6,0,0"
+                                     IsReadOnly="True"
+                                     Text="{Binding ImportedModDirectoryPath, Mode=OneWay}"/>
+                            <TextBlock Margin="0,8,0,0"
+                                       Style="{StaticResource CaptionStyle}"
+                                       Text="此目录仅从主窗口当前选中的角色目录导入；如需切换，请关闭窗口后回到主窗口重新选择角色目录。"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <TextBlock Grid.Row="4"
+                           Text="{Binding StatusText}"
+                           Style="{StaticResource CaptionStyle}"/>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.65*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="4.15*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Style="{StaticResource CardBorderStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="6"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="8"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel>
+                            <TextBlock Text="自动配对作业"
+                                       Style="{StaticResource SectionTitleStyle}"/>
+                            <TextBlock Margin="0,4,0,0"
+                                       Text="{Binding CandidateSummaryText}"
+                                       Style="{StaticResource CaptionStyle}"/>
+                        </StackPanel>
+
+                        <Button Grid.Column="1"
+                                Margin="12,0,0,0"
+                                Content="手动配对"
+                                IsEnabled="{Binding CanOpenManualPairing}"
+                                Click="btnAddManualPairing_Click"
+                                Style="{StaticResource PrimaryButtonStyle}"/>
+                    </Grid>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="148"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="168"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock VerticalAlignment="Center"
+                                   Text="列表筛选"/>
+                        <ComboBox Grid.Column="1"
+                                  Margin="8,0,0,0"
+                                  SelectedValue="{Binding SelectedJobFilterMode}"
+                                  SelectedValuePath="Tag">
+                            <ComboBoxItem Content="全部作业"
+                                          Tag="{x:Static vm:VersionSyncJobFilterMode.All}"/>
+                            <ComboBoxItem Content="仅看有差异"
+                                          Tag="{x:Static vm:VersionSyncJobFilterMode.HasDifferences}"/>
+                            <ComboBoxItem Content="仅看需人工确认"
+                                          Tag="{x:Static vm:VersionSyncJobFilterMode.ManualReviewOnly}"/>
+                            <ComboBoxItem Content="仅看可自动应用"
+                                          Tag="{x:Static vm:VersionSyncJobFilterMode.AutoApplicableOnly}"/>
+                        </ComboBox>
+
+                        <TextBlock Grid.Column="3"
+                                   VerticalAlignment="Center"
+                                   Text="批量策略"/>
+                        <ComboBox Grid.Column="4"
+                                  Margin="8,0,0,0"
+                                  SelectedValue="{Binding SelectedBatchApplyMode}"
+                                  SelectedValuePath="Tag">
+                            <ComboBoxItem Content="应用当前筛选结果中的全部差异项"
+                                          Tag="{x:Static vm:VersionSyncBatchApplyMode.AllVisibleJobs}"/>
+                            <ComboBoxItem Content="只应用可自动项"
+                                          Tag="{x:Static vm:VersionSyncBatchApplyMode.AutoApplicableOnly}"/>
+                        </ComboBox>
+                    </Grid>
+
+                    <TextBlock Grid.Row="4"
+                               Text="{Binding BatchApplyModeDescriptionText}"
+                               Style="{StaticResource CaptionStyle}"/>
+
+                    <DataGrid Grid.Row="6"
+                              ItemsSource="{Binding PairingJobs}"
+                              SelectedItem="{Binding SelectedPairingJob, Mode=TwoWay}"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              SelectionMode="Single"
+                              PreviewMouseRightButtonDown="PairingJobsGrid_PreviewMouseRightButtonDown">
+                        <DataGrid.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="删除配对"
+                                          Command="{Binding PlacementTarget.DataContext.DeleteSelectedPairingCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                            </ContextMenu>
+                        </DataGrid.ContextMenu>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID"
+                                                Binding="{Binding Job.OldCandidate.Id}"
+                                                Width="96"/>
+                            <DataGridTextColumn Header="状态"
+                                                Binding="{Binding StatusText}"
+                                                Width="120"/>
+                            <DataGridTextColumn Header="差异摘要"
+                                                Binding="{Binding DifferenceCount}"
+                                                Width="84"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Border>
+
+            <Border Grid.Column="2"
+                    Style="{StaticResource CardBorderStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="10"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border Grid.Row="0"
+                            Style="{StaticResource InsetBorderStyle}"
+                            Background="{StaticResource AccentSoftBrush}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="当前对比预览"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Margin="0,6,0,0"
+                                           Text="{Binding SelectedJobSummaryText}"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Margin="0,6,0,0"
+                                           Text="{Binding ComparisonSummaryText}"
+                                           Style="{StaticResource CaptionStyle}"/>
+                                <TextBlock Margin="0,4,0,0"
+                                           Text="按键和参数的“预览结果”列可编辑；修改后点击“同步结构化编辑”刷新最终文本。复杂模型绑定建议直接修改右侧同步预览文本。"
+                                           Style="{StaticResource CaptionStyle}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1"
+                                        Margin="12,0,0,0">
+                                <Button Content="同步结构化编辑"
+                                        Command="{Binding ApplyStructuredPreviewEditsCommand}"
+                                        Style="{StaticResource BaseButtonStyle}"/>
+                                <Button Content="应用当前作业"
+                                        Command="{Binding ApplySelectedJobCommand}"
+                                        Style="{StaticResource WarmButtonStyle}"
+                                        Margin="0,8,0,0"/>
+                                <Button Margin="0,8,0,0"
+                                        Content="应用全部作业"
+                                        Command="{Binding ApplyAllJobsCommand}"
+                                        Style="{StaticResource PrimaryButtonStyle}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <TabControl Grid.Row="2">
+                        <TabItem Header="按键对比">
+                            <DataGrid Margin="6"
+                                      ItemsSource="{Binding ToggleDiffItems}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="节名"
+                                                        Binding="{Binding SectionName}"
+                                                        Width="*"
+                                                        IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="旧按键"
+                                                        Binding="{Binding OldKeyBindingsText}"
+                                                        Width="*"
+                                                        IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="新按键"
+                                                        Binding="{Binding NewKeyBindingsText}"
+                                                        Width="*"
+                                                        IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="旧目标值"
+                                                        Binding="{Binding OldTargetValuesText}"
+                                                        Width="*"
+                                                        IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="新目标值"
+                                                        Binding="{Binding NewTargetValuesText}"
+                                                        Width="*"
+                                                        IsReadOnly="True"/>
+                                    <DataGridTemplateColumn Header="预览结果"
+                                                            Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding ResultKeyBindingsText}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                        <DataGridTemplateColumn.CellEditingTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding ResultKeyBindingsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellEditingTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Header="预览目标值"
+                                                            Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding ResultTargetValuesText}"
+                                                           TextWrapping="Wrap"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                        <DataGridTemplateColumn.CellEditingTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding ResultTargetValuesText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                         AcceptsReturn="True"
+                                                         TextWrapping="Wrap"
+                                                         MinLines="2"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellEditingTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="状态"
+                                                        Binding="{Binding Status}"
+                                                        Width="120"
+                                                        IsReadOnly="True"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+
+                        <TabItem Header="参数对比">
+                            <DataGrid Margin="6"
+                                      ItemsSource="{Binding ParameterDiffItems}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="参数"
+                                                        Binding="{Binding Name}"
+                                                        Width="*"
+                                                        IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="旧默认值"
+                                                        Binding="{Binding OldDefaultValue}"
+                                                        Width="*"
+                                                        IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="新默认值"
+                                                        Binding="{Binding NewDefaultValue}"
+                                                        Width="*"
+                                                        IsReadOnly="True"/>
+                                    <DataGridTemplateColumn Header="预览结果"
+                                                            Width="*">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding ResultDefaultValue}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                        <DataGridTemplateColumn.CellEditingTemplate>
+                                            <DataTemplate>
+                                                <TextBox Text="{Binding ResultDefaultValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellEditingTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTextColumn Header="状态"
+                                                        Binding="{Binding Status}"
+                                                        Width="120"
+                                                        IsReadOnly="True"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+
+                        <TabItem Header="模型对比">
+                            <DataGrid Margin="6"
+                                      ItemsSource="{Binding VisibilityDiffItems}"
+                                      AutoGenerateColumns="False"
+                                      IsReadOnly="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="模型项"
+                                                        Binding="{Binding DisplayText}"
+                                                        Width="*"/>
+                                    <DataGridTextColumn Header="旧绑定"
+                                                        Binding="{Binding OldBindingText}"
+                                                        Width="*"/>
+                                    <DataGridTextColumn Header="新绑定"
+                                                        Binding="{Binding NewBindingText}"
+                                                        Width="*"/>
+                                    <DataGridTextColumn Header="预览结果"
+                                                        Binding="{Binding ResultBindingText}"
+                                                        Width="*"/>
+                                    <DataGridTextColumn Header="状态"
+                                                        Binding="{Binding Status}"
+                                                        Width="120"/>
+                                    <DataGridTextColumn Header="说明"
+                                                        Binding="{Binding Detail}"
+                                                        Width="1.4*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </TabItem>
+
+                        <TabItem Header="文本对比">
+                            <Grid Margin="6">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="8"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Row="0"
+                                            Grid.ColumnSpan="5"
+                                            Orientation="Horizontal">
+                                    <Button x:Name="btnPreviousDifference"
+                                            MinWidth="88"
+                                            Padding="12,4"
+                                            Content="上一个"
+                                            Click="btnPreviousDifference_Click"/>
+                                    <Button x:Name="btnNextDifference"
+                                            Margin="8,0,0,0"
+                                            MinWidth="88"
+                                            Padding="12,4"
+                                            Content="下一个"
+                                            Click="btnNextDifference_Click"/>
+                                    <TextBlock x:Name="txtDifferencePosition"
+                                               Margin="12,4,0,0"
+                                               VerticalAlignment="Center"
+                                               Text="无差异"
+                                               Style="{StaticResource CaptionStyle}"/>
+                                </StackPanel>
+
+                                <Border Grid.Row="2"
+                                        Grid.Column="0"
+                                        Style="{StaticResource InsetBorderStyle}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="8"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="旧配置文本"
+                                                   FontWeight="SemiBold"/>
+                                        <RichTextBox x:Name="rtbOldConfigText"
+                                                     Grid.Row="2"
+                                                     IsReadOnly="True"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     HorizontalScrollBarVisibility="Auto"
+                                                     SpellCheck.IsEnabled="False"
+                                                     GotKeyboardFocus="ComparisonEditor_GotKeyboardFocus"
+                                                     SelectionChanged="ComparisonEditor_SelectionChanged"/>
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Row="2"
+                                        Grid.Column="2"
+                                        Style="{StaticResource InsetBorderStyle}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="8"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="新版原始文本"
+                                                   FontWeight="SemiBold"/>
+                                        <RichTextBox x:Name="rtbNewConfigText"
+                                                     Grid.Row="2"
+                                                     IsReadOnly="True"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     HorizontalScrollBarVisibility="Auto"
+                                                     SpellCheck.IsEnabled="False"
+                                                     GotKeyboardFocus="ComparisonEditor_GotKeyboardFocus"
+                                                     SelectionChanged="ComparisonEditor_SelectionChanged"/>
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Row="2"
+                                        Grid.Column="4"
+                                        Style="{StaticResource InsetBorderStyle}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="8"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Text="同步预览文本"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock Grid.Row="0"
+                                                   Margin="92,1,0,0"
+                                                   VerticalAlignment="Center"
+                                                   Text="可直接编辑并应用。"
+                                                   Style="{StaticResource CaptionStyle}"/>
+                                        <RichTextBox x:Name="rtbResultConfigText"
+                                                     Grid.Row="2"
+                                                     IsReadOnly="False"
+                                                     VerticalScrollBarVisibility="Auto"
+                                                     HorizontalScrollBarVisibility="Auto"
+                                                     SpellCheck.IsEnabled="False"
+                                                     GotKeyboardFocus="ComparisonEditor_GotKeyboardFocus"
+                                                     SelectionChanged="ComparisonEditor_SelectionChanged"
+                                                     TextChanged="rtbResultConfigText_TextChanged"
+                                                     LostFocus="rtbResultConfigText_LostFocus"/>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </TabItem>
+                    </TabControl>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Border Grid.Row="4"
+                Style="{StaticResource InsetBorderStyle}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="4"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="8"/>
+                    <RowDefinition Height="96"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Text="{Binding LastApplyText}"
+                           Style="{StaticResource CaptionStyle}"/>
+                <TextBlock Grid.Row="2"
+                           Text="{Binding BatchApplySummaryText}"
+                           Style="{StaticResource CaptionStyle}"/>
+                <TextBox Grid.Row="4"
+                         Text="{Binding BatchApplyLogText, Mode=OneWay}"
+                         IsReadOnly="True"
+                         AcceptsReturn="True"
+                         TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto"
+                         FontFamily="Consolas"/>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

@@ -7,6 +7,7 @@ namespace WuwaModModifier.Common
         public static string DefaultModPath { get; private set; } = "";
         public static string DefaultWwmiPath { get; private set; } = "";
         public static string OtherFolderPath { get; private set; } = "";
+        public static string StandardToggleTemplatePath { get; private set; } = "";
 
         static AppConfig()
         {
@@ -20,6 +21,7 @@ namespace WuwaModModifier.Common
                 DefaultModPath = ConfigurationManager.AppSettings["DefaultModPath"] ?? "";
                 DefaultWwmiPath = ConfigurationManager.AppSettings["DefaultWwmiPath"] ?? "";
                 OtherFolderPath = ConfigurationManager.AppSettings["OtherFolderPath"] ?? "";
+                StandardToggleTemplatePath = ConfigurationManager.AppSettings["StandardToggleTemplatePath"] ?? "";
             }
             catch (Exception ex)
             {
