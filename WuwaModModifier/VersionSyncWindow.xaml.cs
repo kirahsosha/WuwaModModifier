@@ -27,6 +27,15 @@ namespace WuwaModModifier
         private static readonly Brush OldDiffLineBrush = CreateFrozenBrush(Color.FromArgb(0x70, 0xF8, 0xE1, 0xD6));
         private static readonly Brush NewDiffLineBrush = CreateFrozenBrush(Color.FromArgb(0x70, 0xD8, 0xEF, 0xEA));
         private static readonly Brush ResultDiffLineBrush = CreateFrozenBrush(Color.FromArgb(0x70, 0xF5, 0xE7, 0xB5));
+        private static readonly Brush PlaceholderLineBrush = CreateFrozenBrush(Color.FromRgb(0xE6, 0xE6, 0xE6));
+        private static readonly Brush TransparentBrush = CreateFrozenBrush(Colors.Transparent);
+
+        private static readonly DependencyProperty IsPlaceholderParagraphProperty =
+            DependencyProperty.RegisterAttached(
+                "IsPlaceholderParagraph",
+                typeof(bool),
+                typeof(VersionSyncWindow),
+                new FrameworkPropertyMetadata(false));
 
         private bool _isUpdatingComparisonEditorsFromViewModel;
         private bool _isUpdatingViewModelFromResultEditor;
@@ -171,6 +180,20 @@ namespace WuwaModModifier
             {
                 _activeComparisonEditor = editor;
                 RefreshDifferenceNavigationButtons();
+            }
+        }
+
+        private void ComparisonEditor_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not RichTextBox editor)
+            {
+                return;
+            }
+
+            var position = editor.GetPositionFromPoint(e.GetPosition(editor), true);
+            if (position?.Paragraph is Paragraph paragraph && GetIsPlaceholderParagraph(paragraph))
+            {
+                e.Handled = true;
             }
         }
 
@@ -400,39 +423,29 @@ namespace WuwaModModifier
             var resultLineIndex = TextDiffHighlighter.FindLineIndexByDifferenceOrdinal(
                 synchronizedState.ResultEditor.DifferenceOrdinalByLineIndex,
                 currentOrdinal.Value);
-            IReadOnlyDictionary<int, string?> sourceLineTextByResultLineIndex = applySource switch
+            var sourceEditorState = applySource switch
             {
-                CurrentDifferenceApplySource.Old => TextDiffHighlighter.BuildSourceLineTextByReferenceLineIndexForReplacement(
-                    ViewModel.OldConfigText,
-                    ViewModel.ResultConfigText),
-                CurrentDifferenceApplySource.New => TextDiffHighlighter.BuildSourceLineTextByReferenceLineIndexForReplacement(
-                    ViewModel.NewConfigText,
-                    ViewModel.ResultConfigText),
+                CurrentDifferenceApplySource.Old => synchronizedState.OldEditor,
+                CurrentDifferenceApplySource.New => synchronizedState.NewEditor,
                 _ => throw new InvalidOperationException("Unknown difference apply source.")
             };
 
             if (!resultLineIndex.HasValue ||
                 resultLineIndex.Value < 0 ||
                 resultLineIndex.Value >= synchronizedState.ResultEditor.Lines.Count ||
-                !TryResolveResultLineReplacement(
-                    sourceLineTextByResultLineIndex,
-                    resultLineIndex.Value,
-                    out var replacementLineText,
-                    out var removeResultLine) ||
-                !TryUpdateResultTextAtLineIndex(
+                resultLineIndex.Value >= sourceEditorState.Lines.Count ||
+                !TryUpdateResultTextAtVisualLineIndex(
                     ViewModel.ResultConfigText,
+                    synchronizedState.ResultEditor,
                     resultLineIndex.Value,
-                    replacementLineText,
-                    removeResultLine,
+                    sourceEditorState.Lines[resultLineIndex.Value],
                     out var updatedResultText))
             {
                 RefreshDifferenceNavigationButtons();
                 return;
             }
 
-            var preferredCaretLineIndex = removeResultLine
-                ? Math.Max(0, resultLineIndex.Value - 1)
-                : resultLineIndex.Value;
+            var preferredCaretLineIndex = resultLineIndex.Value;
 
             _activeComparisonEditor = rtbResultConfigText;
             ViewModel.ResultConfigText = updatedResultText;
@@ -536,61 +549,54 @@ namespace WuwaModModifier
             btnApplyNewDifference.IsEnabled = isEnabled;
         }
 
-        private static bool TryResolveResultLineReplacement(
-            IReadOnlyDictionary<int, string?> sourceLineTextByResultLineIndex,
-            int resultLineIndex,
-            out string? replacementLineText,
-            out bool removeResultLine)
-        {
-            return TryResolveReplacementFromMap(
-                sourceLineTextByResultLineIndex,
-                resultLineIndex,
-                out replacementLineText,
-                out removeResultLine);
-        }
-
-        private static bool TryResolveReplacementFromMap(
-            IReadOnlyDictionary<int, string?> lineTextByResultLineIndex,
-            int resultLineIndex,
-            out string? replacementLineText,
-            out bool removeResultLine)
-        {
-            if (!lineTextByResultLineIndex.TryGetValue(resultLineIndex, out replacementLineText))
-            {
-                removeResultLine = false;
-                return false;
-            }
-
-            removeResultLine = replacementLineText == null;
-            return true;
-        }
-
-        private static bool TryUpdateResultTextAtLineIndex(
+        private static bool TryUpdateResultTextAtVisualLineIndex(
             string resultText,
-            int lineIndex,
-            string? replacementLineText,
-            bool removeResultLine,
+            TextDiffSynchronizedEditorState resultEditorState,
+            int visualLineIndex,
+            TextDiffHighlightLine sourceLine,
             out string updatedResultText)
         {
             updatedResultText = resultText;
 
-            var lines = SplitTextLinesForEditing(resultText);
-            if (lineIndex < 0 || lineIndex >= lines.Count)
+            if (visualLineIndex < 0 ||
+                visualLineIndex >= resultEditorState.ActualLineIndexByVisualLineIndex.Count ||
+                visualLineIndex >= resultEditorState.InsertionLineIndexByVisualLineIndex.Count)
             {
                 return false;
             }
 
-            if (removeResultLine)
+            var lines = SplitTextLinesForEditing(resultText);
+            var targetActualLineIndex = resultEditorState.ActualLineIndexByVisualLineIndex[visualLineIndex];
+            var insertionLineIndex = resultEditorState.InsertionLineIndexByVisualLineIndex[visualLineIndex];
+
+            if (sourceLine.IsPlaceholder)
             {
-                lines.RemoveAt(lineIndex);
+                if (!targetActualLineIndex.HasValue ||
+                    targetActualLineIndex.Value < 0 ||
+                    targetActualLineIndex.Value >= lines.Count)
+                {
+                    return false;
+                }
+
+                lines.RemoveAt(targetActualLineIndex.Value);
             }
-            else if (replacementLineText != null)
+            else if (targetActualLineIndex.HasValue)
             {
-                lines[lineIndex] = replacementLineText;
+                if (targetActualLineIndex.Value < 0 || targetActualLineIndex.Value >= lines.Count)
+                {
+                    return false;
+                }
+
+                lines[targetActualLineIndex.Value] = sourceLine.Text;
             }
             else
             {
-                return false;
+                if (insertionLineIndex < 0 || insertionLineIndex > lines.Count)
+                {
+                    return false;
+                }
+
+                lines.Insert(insertionLineIndex, sourceLine.Text);
             }
 
             if (lines.Count == 0)
@@ -783,6 +789,18 @@ namespace WuwaModModifier
                 Padding = new Thickness(0)
             };
 
+            if (line.IsPlaceholder)
+            {
+                paragraph.Background = PlaceholderLineBrush;
+                SetIsPlaceholderParagraph(paragraph, true);
+                paragraph.Inlines.Add(new Run("\u00A0")
+                {
+                    Foreground = TransparentBrush,
+                    Background = TransparentBrush
+                });
+                return paragraph;
+            }
+
             if (line.HasDifference)
             {
                 paragraph.Background = lineDiffBrush;
@@ -821,10 +839,45 @@ namespace WuwaModModifier
 
         private static string ReadEditorText(RichTextBox editor)
         {
-            var text = new TextRange(editor.Document.ContentStart, editor.Document.ContentEnd).Text;
-            return text.EndsWith("\r\n", StringComparison.Ordinal)
-                ? text[..^2]
-                : text;
+            var lines = new List<string>();
+
+            for (Block? block = editor.Document.Blocks.FirstBlock; block != null; block = block.NextBlock)
+            {
+                if (block is not Paragraph paragraph || GetIsPlaceholderParagraph(paragraph))
+                {
+                    continue;
+                }
+
+                var text = new TextRange(paragraph.ContentStart, paragraph.ContentEnd).Text;
+                lines.Add(TrimParagraphTerminator(text));
+            }
+
+            return string.Join(Environment.NewLine, lines);
+        }
+
+        private static string TrimParagraphTerminator(string text)
+        {
+            if (text.EndsWith("\r\n", StringComparison.Ordinal))
+            {
+                return text[..^2];
+            }
+
+            if (text.EndsWith("\n", StringComparison.Ordinal) || text.EndsWith("\r", StringComparison.Ordinal))
+            {
+                return text[..^1];
+            }
+
+            return text;
+        }
+
+        private static bool GetIsPlaceholderParagraph(DependencyObject element)
+        {
+            return (bool)element.GetValue(IsPlaceholderParagraphProperty);
+        }
+
+        private static void SetIsPlaceholderParagraph(DependencyObject element, bool value)
+        {
+            element.SetValue(IsPlaceholderParagraphProperty, value);
         }
 
         private static ScrollViewer? GetScrollViewer(RichTextBox editor)

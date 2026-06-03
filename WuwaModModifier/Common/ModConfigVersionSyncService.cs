@@ -38,12 +38,13 @@ namespace WuwaModModifier.Common
             }
 
             return DiscoverCandidateDirectories(modRootPath)
-                .Select(CreateCandidate)
+                .SelectMany(CreateCandidates)
                 .Where(candidate => candidate != null)
                 .Cast<VersionSyncFolderCandidate>()
                 .OrderBy(candidate => candidate.CharacterName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(candidate => candidate.Id, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(candidate => candidate.FolderName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(candidate => candidate.ConfigRelativePath, StringComparer.OrdinalIgnoreCase)
                 .ToList();
         }
 
@@ -83,7 +84,7 @@ namespace WuwaModModifier.Common
             var mergedCandidates = oldCandidates
                 .Concat(newCandidates)
                 .Where(candidate => candidate != null && !string.IsNullOrWhiteSpace(candidate.FullPath))
-                .GroupBy(candidate => candidate.FullPath, StringComparer.OrdinalIgnoreCase)
+                .GroupBy(GetCandidateIdentityKey, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.First())
                 .ToList();
             var groupedCandidates = GroupCandidatesByCharacterAndId(mergedCandidates);
@@ -779,20 +780,20 @@ namespace WuwaModModifier.Common
                 .ToList();
         }
 
-        private VersionSyncFolderCandidate? CreateCandidate(string modDirectory)
+        private IEnumerable<VersionSyncFolderCandidate> CreateCandidates(string modDirectory)
         {
             if (!ModPathHelper.TryParseModDirectoryPath(modDirectory, out var characterName, out var id, out var modName))
             {
-                return null;
+                return Array.Empty<VersionSyncFolderCandidate>();
             }
 
-            var configPath = _configDiscoveryService.GetPrimaryConfigPath(modDirectory);
-            if (string.IsNullOrWhiteSpace(configPath))
+            var configPaths = _configDiscoveryService.GetConfigCandidates(modDirectory);
+            if (configPaths.Count == 0)
             {
-                return null;
+                return Array.Empty<VersionSyncFolderCandidate>();
             }
 
-            return new VersionSyncFolderCandidate
+            return configPaths.Select(configPath => new VersionSyncFolderCandidate
             {
                 CharacterName = characterName,
                 Id = id,
@@ -802,7 +803,7 @@ namespace WuwaModModifier.Common
                 ConfigPath = configPath,
                 ConfigRelativePath = Path.GetRelativePath(modDirectory, configPath),
                 NormalizedNameKey = ModPathHelper.NormalizeVersionSyncKey(modName)
-            };
+            });
         }
 
         private List<VersionSyncPairingJob> CreatePairingJobsWithinCharacterGroup(
@@ -850,6 +851,7 @@ namespace WuwaModModifier.Common
                     !string.IsNullOrWhiteSpace(candidate.FullPath) &&
                     !string.IsNullOrWhiteSpace(candidate.NormalizedNameKey))
                 .OrderBy(candidate => candidate.FolderName, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(candidate => candidate.ConfigRelativePath, StringComparer.OrdinalIgnoreCase)
                 .ToList();
             var sequence = 1;
 
@@ -867,9 +869,9 @@ namespace WuwaModModifier.Common
                 jobs.AddRange(CreateSingleDirectoryExactKeyJobs(groupedCandidates, ref sequence));
 
                 var groupedPaths = groupedCandidates
-                    .Select(candidate => candidate.FullPath)
+                    .Select(GetCandidateIdentityKey)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                remainingCandidates.RemoveAll(candidate => groupedPaths.Contains(candidate.FullPath));
+                remainingCandidates.RemoveAll(candidate => groupedPaths.Contains(GetCandidateIdentityKey(candidate)));
             }
 
             jobs.AddRange(CreateSingleDirectoryFallbackJobs(remainingCandidates, ref sequence));
@@ -891,7 +893,7 @@ namespace WuwaModModifier.Common
                     ? currentCandidate
                     : bestCandidate);
             var oldCandidates = candidates
-                .Where(candidate => !candidate.FullPath.Equals(templateCandidate.FullPath, StringComparison.OrdinalIgnoreCase))
+                .Where(candidate => !GetCandidateIdentityKey(candidate).Equals(GetCandidateIdentityKey(templateCandidate), StringComparison.OrdinalIgnoreCase))
                 .OrderBy(candidate => candidate, SingleDirectoryOldCandidateComparer.Instance)
                     .ToList();
 
@@ -966,10 +968,11 @@ namespace WuwaModModifier.Common
             foreach (var pair in candidatePairs
                          .OrderByDescending(item => item.Score)
                          .ThenBy(item => item.OldCandidate.FolderName, StringComparer.OrdinalIgnoreCase)
-                         .ThenBy(item => item.NewCandidate.FolderName, StringComparer.OrdinalIgnoreCase))
+                         .ThenBy(item => item.OldCandidate.ConfigRelativePath, StringComparer.OrdinalIgnoreCase)
+                         .ThenBy(item => item.NewCandidate.ConfigRelativePath, StringComparer.OrdinalIgnoreCase))
             {
-                if (!matchedOldCandidates.Add(pair.OldCandidate.FullPath) ||
-                    !matchedNewCandidates.Add(pair.NewCandidate.FullPath))
+                if (!matchedOldCandidates.Add(GetCandidateIdentityKey(pair.OldCandidate)) ||
+                    !matchedNewCandidates.Add(GetCandidateIdentityKey(pair.NewCandidate)))
                 {
                     continue;
                 }
@@ -1083,8 +1086,8 @@ namespace WuwaModModifier.Common
 
             foreach (var pair in candidatePairs)
             {
-                if (!matchedOldCandidates.Add(pair.OldCandidate.FullPath) ||
-                    !matchedNewCandidates.Add(pair.NewCandidate.FullPath))
+                if (!matchedOldCandidates.Add(GetCandidateIdentityKey(pair.OldCandidate)) ||
+                    !matchedNewCandidates.Add(GetCandidateIdentityKey(pair.NewCandidate)))
                 {
                     continue;
                 }
@@ -1154,12 +1157,22 @@ namespace WuwaModModifier.Common
         {
             var oldPaths = oldCandidates
                 .Where(candidate => candidate != null && !string.IsNullOrWhiteSpace(candidate.FullPath))
-                .Select(candidate => candidate.FullPath);
+                .Select(GetCandidateIdentityKey);
             var newPaths = newCandidates
                 .Where(candidate => candidate != null && !string.IsNullOrWhiteSpace(candidate.FullPath))
-                .Select(candidate => candidate.FullPath);
+                .Select(GetCandidateIdentityKey);
 
             return oldPaths.Intersect(newPaths, StringComparer.OrdinalIgnoreCase).Any();
+        }
+
+        private static string GetCandidateIdentityKey(VersionSyncFolderCandidate candidate)
+        {
+            if (candidate == null)
+            {
+                return string.Empty;
+            }
+
+            return string.Join("|", candidate.FullPath, candidate.ConfigRelativePath);
         }
 
         private static bool CanFallbackPairInSingleDirectory(

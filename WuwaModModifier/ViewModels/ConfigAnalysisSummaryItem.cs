@@ -114,9 +114,16 @@ namespace WuwaModModifier.ViewModels
         public int NavigateLine { get; set; }
         public bool CanToggleSafely { get; set; }
         public bool CanBindSafely { get; set; }
+        public bool IsDirectlyHidden { get; set; }
 
         public static ConfigVisibilitySummaryItem FromModel(ModVisibilityItem item)
         {
+            var canToggleSafely = item.DrawCallCount > 0 && item.ControllingParameters.Count == 1;
+            var canBindSafely = item.DrawCallCount > 0 &&
+                item.ControllingParameters.Count == 0 &&
+                item.ControllingKeySections.Count == 0 &&
+                item.ControllingKeyBindings.Count == 0;
+
             return new ConfigVisibilitySummaryItem
             {
                 SectionName = item.SectionName,
@@ -127,11 +134,10 @@ namespace WuwaModModifier.ViewModels
                 ModelParametersText = JoinSemicolon(item.ModelParameters),
                 KeyParametersText = JoinSemicolon(item.KeyParameterBindings.Select(FormatKeyParameterBinding)),
                 ControllingKeyBindingsText = Join(item.ControllingKeyBindings),
-                CanToggleSafely = item.DrawCallCount > 0 && item.ControllingParameters.Count == 1,
-                CanBindSafely = item.DrawCallCount > 0 &&
-                    item.ControllingParameters.Count == 0 &&
-                    item.ControllingKeySections.Count == 0 &&
-                    item.ControllingKeyBindings.Count == 0
+                CanToggleSafely = canToggleSafely,
+                CanBindSafely = canBindSafely,
+                IsDirectlyHidden = canBindSafely && item.ControlExpressions.Any(expression =>
+                    expression.Trim().Equals("0", StringComparison.OrdinalIgnoreCase))
             };
         }
 

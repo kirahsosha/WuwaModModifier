@@ -678,6 +678,7 @@
                                                      VerticalScrollBarVisibility="Auto"
                                                      HorizontalScrollBarVisibility="Auto"
                                                      SpellCheck.IsEnabled="False"
+                                                     PreviewMouseLeftButtonDown="ComparisonEditor_PreviewMouseLeftButtonDown"
                                                      GotKeyboardFocus="ComparisonEditor_GotKeyboardFocus"
                                                      SelectionChanged="ComparisonEditor_SelectionChanged"/>
                                     </Grid>
@@ -700,6 +701,7 @@
                                                      VerticalScrollBarVisibility="Auto"
                                                      HorizontalScrollBarVisibility="Auto"
                                                      SpellCheck.IsEnabled="False"
+                                                     PreviewMouseLeftButtonDown="ComparisonEditor_PreviewMouseLeftButtonDown"
                                                      GotKeyboardFocus="ComparisonEditor_GotKeyboardFocus"
                                                      SelectionChanged="ComparisonEditor_SelectionChanged"/>
                                     </Grid>
@@ -727,6 +729,7 @@
                                                      VerticalScrollBarVisibility="Auto"
                                                      HorizontalScrollBarVisibility="Auto"
                                                      SpellCheck.IsEnabled="False"
+                                                     PreviewMouseLeftButtonDown="ComparisonEditor_PreviewMouseLeftButtonDown"
                                                      GotKeyboardFocus="ComparisonEditor_GotKeyboardFocus"
                                                      SelectionChanged="ComparisonEditor_SelectionChanged"
                                                      TextChanged="rtbResultConfigText_TextChanged"

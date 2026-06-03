@@ -357,6 +357,7 @@ namespace WuwaModModifier.Common
                 ControllingParameters = controllingParameters,
                 ControllingKeySections = controllingKeySections,
                 ControllingKeyBindings = controllingKeyBindings,
+                ControlExpressions = drawEntry.ControlExpressions,
                 Confidence = ClassifyVisibilityConfidence(1, controllingParameters.Count)
             };
         }
@@ -405,6 +406,7 @@ namespace WuwaModModifier.Common
                 ControllingParameters = controllingParameters,
                 ControllingKeySections = controllingKeySections,
                 ControllingKeyBindings = controllingKeyBindings,
+                ControlExpressions = new List<string>(),
                 Confidence = ClassifyVisibilityConfidence(0, controllingParameters.Count)
             };
         }

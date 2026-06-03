@@ -324,6 +324,101 @@ namespace UnitTests
         }
 
         [Fact]
+        public void SelectedDirectoryItem_ShouldExposeMultipleConfigCandidates_ForMultiConfigMod()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
+            var modDirectory = Path.Combine(tempRoot, "[201]MultiFormMod");
+            Directory.CreateDirectory(modDirectory);
+
+            try
+            {
+                File.WriteAllText(
+                    Path.Combine(modDirectory, "mod.ini"),
+                    "[Constants]\n" +
+                    "global $form = 1\n");
+                File.WriteAllText(
+                    Path.Combine(modDirectory, "form_a.ini"),
+                    "[Constants]\n" +
+                    "global $form = 2\n");
+                File.WriteAllText(
+                    Path.Combine(modDirectory, "form_b.ini"),
+                    "[Constants]\n" +
+                    "global $form = 3\n");
+
+                var vm = new MainViewModel(new FileSystemService(), new TestMessageService());
+
+                vm.SelectedDirectoryItem = new DirectoryItemViewModel
+                {
+                    Name = "[201]MultiFormMod",
+                    FullPath = modDirectory,
+                    Id = "201",
+                    IsDirectory = false
+                };
+
+                Assert.EndsWith("mod.ini", vm.SelectedConfigPath);
+                Assert.Contains(Path.Combine(modDirectory, "mod.ini"), vm.SelectedConfigCandidatesText);
+                Assert.Contains(Path.Combine(modDirectory, "form_a.ini"), vm.SelectedConfigCandidatesText);
+                Assert.Contains(Path.Combine(modDirectory, "form_b.ini"), vm.SelectedConfigCandidatesText);
+                Assert.Contains("已发现 3 个配置候选", vm.SelectedConfigEditStatus);
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void SelectedConfigCandidatePath_ShouldSwitchAnalysisToSelectedCandidate()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
+            var modDirectory = Path.Combine(tempRoot, "[202]CandidateSwitch");
+            Directory.CreateDirectory(modDirectory);
+
+            try
+            {
+                var primaryConfigPath = Path.Combine(modDirectory, "mod.ini");
+                var alternateConfigPath = Path.Combine(modDirectory, "form_a.ini");
+                File.WriteAllText(
+                    primaryConfigPath,
+                    "[Constants]\n" +
+                    "global $form = 0\n");
+                File.WriteAllText(
+                    alternateConfigPath,
+                    "[Constants]\n" +
+                    "global $form = 1\n");
+
+                var vm = new MainViewModel(new FileSystemService(), new TestMessageService());
+                vm.SelectedDirectoryItem = new DirectoryItemViewModel
+                {
+                    Name = "[202]CandidateSwitch",
+                    FullPath = modDirectory,
+                    Id = "202",
+                    IsDirectory = false
+                };
+
+                Assert.Equal(primaryConfigPath, vm.SelectedConfigPath);
+                Assert.Equal(primaryConfigPath, vm.SelectedConfigCandidatePath);
+
+                vm.SelectedConfigCandidatePath = alternateConfigPath;
+
+                Assert.Equal(alternateConfigPath, vm.SelectedConfigPath);
+                Assert.Equal(alternateConfigPath, vm.SelectedConfigCandidatePath);
+                Assert.Contains("已切换到候选配置", vm.SelectedConfigEditStatus);
+                Assert.Contains("global $form = 1", vm.RawConfigEditorText);
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+            }
+        }
+
+        [Fact]
         public void SelectedDirectoryItem_ShouldResetConfigAnalysis_WhenSelectingCharacterDirectory()
         {
             var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
@@ -538,17 +633,18 @@ namespace UnitTests
                 Assert.True(vm.IsRawConfigDirty);
                 Assert.True(vm.SaveRawConfigCommand.CanExecute(null));
                 Assert.False(vm.ApplyToggleKeyBindingsCommand.CanExecute(null));
-                Assert.False(vm.SaveConfigToModCommand.CanExecute(null));
+                Assert.True(vm.SaveConfigToModCommand.CanExecute(null));
                 Assert.False(vm.SyncModToWwmiCommand.CanExecute(null));
                 Assert.Contains("未保存修改", vm.RawConfigEditorStatusText);
 
-                vm.SaveRawConfigCommand.Execute(null);
+                vm.SaveConfigToModCommand.Execute(null);
 
                 Assert.False(vm.IsRawConfigDirty);
                 Assert.False(vm.HasPendingConfigChanges);
                 Assert.Contains("CTRL ALT NUMPAD1", File.ReadAllText(configPath));
                 Assert.Contains("; raw editor note", File.ReadAllText(configPath));
-                Assert.Contains("已将右侧原文保存到当前配置文件", messages.LastInfoMessage ?? string.Empty);
+                Assert.Contains(configPath, messages.LastInfoMessage ?? string.Empty);
+                Assert.Contains("已保存到", messages.LastInfoMessage ?? string.Empty);
                 Assert.Contains("; raw editor note", vm.RawConfigEditorText);
             }
             finally
@@ -700,10 +796,344 @@ namespace UnitTests
                 Assert.Contains("将覆盖已有文件", vm.SaveToWwmiPreviewPath);
                 Assert.Contains("key = CTRL ALT NUMPAD1", File.ReadAllText(wwmiConfigPath));
                 Assert.True(vm.HasPendingConfigChanges);
-                Assert.Contains("已导出到", messages.LastInfoMessage ?? string.Empty);
+                Assert.Contains("已导出当前工作内容到", messages.LastInfoMessage ?? string.Empty);
                 Assert.Contains(wwmiConfigPath, messages.LastConfirmationMessage ?? string.Empty);
                 Assert.Contains("将创建新文件", messages.LastConfirmationMessage ?? string.Empty);
                 Assert.Contains(nameof(MainViewModel.SaveToWwmiPreviewPath), changedProperties);
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void SaveConfigToWwmiCommand_ShouldExportRawEditorChangesWithoutClearingCurrentSourceState()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
+            var modRoot = Path.Combine(tempRoot, "Mods");
+            var wwmiRoot = Path.Combine(tempRoot, "WWMI");
+            var modDirectory = Path.Combine(modRoot, "Encore", "[200]FancyDress");
+            Directory.CreateDirectory(modDirectory);
+
+            try
+            {
+                var configPath = Path.Combine(modDirectory, "mod.ini");
+                File.WriteAllText(
+                    configPath,
+                    "[Constants]\n" +
+                    "global persist $curHat = 1\n\n" +
+                    "[Key curHat]\n" +
+                    "condition = $object_detected\n" +
+                    "key = NO_CTRL NO_ALT NO_SHIFT NUMPAD1\n" +
+                    "type = cycle\n" +
+                    "$curHat = 0,1\n");
+
+                var messages = new TestMessageService();
+                var vm = new MainViewModel(new FileSystemService(), messages)
+                {
+                    ModFolderPath = modRoot,
+                    WwmiFolderPath = wwmiRoot
+                };
+
+                vm.SelectedDirectoryItem = new DirectoryItemViewModel
+                {
+                    Name = "[200]FancyDress",
+                    FullPath = modDirectory,
+                    Id = "200",
+                    IsDirectory = false
+                };
+
+                vm.SelectedToggleItem = Assert.Single(vm.SelectedToggleItems);
+                vm.ToggleKeyBindingEditorText = "CTRL ALT NUMPAD1";
+                vm.ApplyToggleKeyBindingsCommand.Execute(null);
+                vm.RawConfigEditorText += "\n; raw editor note";
+
+                Assert.True(vm.HasPendingConfigChanges);
+                Assert.True(vm.IsRawConfigDirty);
+                Assert.True(vm.SaveConfigToWwmiCommand.CanExecute(null));
+
+                vm.SaveConfigToWwmiCommand.Execute(null);
+
+                var wwmiConfigPath = Path.Combine(wwmiRoot, "[Encore][200]FancyDress", "mod.ini");
+                Assert.True(File.Exists(wwmiConfigPath));
+                Assert.Contains("CTRL ALT NUMPAD1", File.ReadAllText(wwmiConfigPath));
+                Assert.Contains("; raw editor note", File.ReadAllText(wwmiConfigPath));
+                Assert.True(vm.HasPendingConfigChanges);
+                Assert.True(vm.IsRawConfigDirty);
+                Assert.Contains("仍有未保存改动", messages.LastInfoMessage ?? string.Empty);
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void ToggleConfigSourceCommand_ShouldSwitchBetweenModAndWwmiConfigs()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
+            var modRoot = Path.Combine(tempRoot, "Mods");
+            var wwmiRoot = Path.Combine(tempRoot, "WWMI");
+            var modDirectory = Path.Combine(modRoot, "Encore", "[200]FancyDress");
+            var wwmiDirectory = Path.Combine(wwmiRoot, "[Encore][200]FancyDress");
+            Directory.CreateDirectory(modDirectory);
+            Directory.CreateDirectory(wwmiDirectory);
+
+            try
+            {
+                var modConfigPath = Path.Combine(modDirectory, "mod.ini");
+                var wwmiConfigPath = Path.Combine(wwmiDirectory, "mod.ini");
+                File.WriteAllText(modConfigPath, "[Constants]\nglobal persist $value = 1\n");
+                File.WriteAllText(wwmiConfigPath, "[Constants]\nglobal persist $value = 9\n");
+
+                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
+                {
+                    ModFolderPath = modRoot,
+                    WwmiFolderPath = wwmiRoot
+                };
+
+                vm.SelectedDirectoryItem = new DirectoryItemViewModel
+                {
+                    Name = "[200]FancyDress",
+                    FullPath = modDirectory,
+                    Id = "200",
+                    IsDirectory = false
+                };
+
+                Assert.Equal(modConfigPath, vm.SelectedConfigPath);
+                Assert.Equal("Mod配置", vm.CurrentConfigSourceText);
+                Assert.True(vm.ToggleConfigSourceCommand.CanExecute(null));
+
+                vm.ToggleConfigSourceCommand.Execute(null);
+
+                Assert.Equal(wwmiConfigPath, vm.SelectedConfigPath);
+                Assert.Equal("WWMI配置", vm.CurrentConfigSourceText);
+                Assert.Contains("$value = 9", vm.RawConfigEditorText);
+
+                vm.ToggleConfigSourceCommand.Execute(null);
+
+                Assert.Equal(modConfigPath, vm.SelectedConfigPath);
+                Assert.Equal("Mod配置", vm.CurrentConfigSourceText);
+                Assert.Contains("$value = 1", vm.RawConfigEditorText);
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void ToggleConfigSourceCommand_ShouldKeepMatchingCandidateAcrossSources()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
+            var modRoot = Path.Combine(tempRoot, "Mods");
+            var wwmiRoot = Path.Combine(tempRoot, "WWMI");
+            var modDirectory = Path.Combine(modRoot, "Encore", "[203]MultiForm");
+            var wwmiDirectory = Path.Combine(wwmiRoot, "[Encore][203]MultiForm");
+            Directory.CreateDirectory(modDirectory);
+            Directory.CreateDirectory(wwmiDirectory);
+
+            try
+            {
+                var modMainConfigPath = Path.Combine(modDirectory, "mod.ini");
+                var modFormConfigPath = Path.Combine(modDirectory, "form_a.ini");
+                var wwmiMainConfigPath = Path.Combine(wwmiDirectory, "mod.ini");
+                var wwmiFormConfigPath = Path.Combine(wwmiDirectory, "form_a.ini");
+
+                File.WriteAllText(modMainConfigPath, "[Constants]\nglobal persist $value = 1\n");
+                File.WriteAllText(modFormConfigPath, "[Constants]\nglobal persist $value = 2\n");
+                File.WriteAllText(wwmiMainConfigPath, "[Constants]\nglobal persist $value = 9\n");
+                File.WriteAllText(wwmiFormConfigPath, "[Constants]\nglobal persist $value = 8\n");
+
+                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
+                {
+                    ModFolderPath = modRoot,
+                    WwmiFolderPath = wwmiRoot
+                };
+
+                vm.SelectedDirectoryItem = new DirectoryItemViewModel
+                {
+                    Name = "[203]MultiForm",
+                    FullPath = modDirectory,
+                    Id = "203",
+                    IsDirectory = false
+                };
+
+                vm.SelectedConfigCandidatePath = modFormConfigPath;
+
+                Assert.Equal(modFormConfigPath, vm.SelectedConfigPath);
+                Assert.Equal(modFormConfigPath, vm.SelectedConfigCandidatePath);
+
+                vm.ToggleConfigSourceCommand.Execute(null);
+
+                Assert.Equal("WWMI配置", vm.CurrentConfigSourceText);
+                Assert.Equal(wwmiFormConfigPath, vm.SelectedConfigPath);
+                Assert.Equal(wwmiFormConfigPath, vm.SelectedConfigCandidatePath);
+                Assert.Contains("$value = 8", vm.RawConfigEditorText);
+
+                vm.ToggleConfigSourceCommand.Execute(null);
+
+                Assert.Equal("Mod配置", vm.CurrentConfigSourceText);
+                Assert.Equal(modFormConfigPath, vm.SelectedConfigPath);
+                Assert.Equal(modFormConfigPath, vm.SelectedConfigCandidatePath);
+                Assert.Contains("$value = 2", vm.RawConfigEditorText);
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void ToggleConfigSourceCommand_ShouldBeDisabledWhenOnlyModConfigExists()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
+            var modRoot = Path.Combine(tempRoot, "Mods");
+            var wwmiRoot = Path.Combine(tempRoot, "WWMI");
+            var modDirectory = Path.Combine(modRoot, "Encore", "[200]FancyDress");
+            Directory.CreateDirectory(modDirectory);
+
+            try
+            {
+                var modConfigPath = Path.Combine(modDirectory, "mod.ini");
+                File.WriteAllText(modConfigPath, "[Constants]\nglobal persist $value = 1\n");
+
+                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
+                {
+                    ModFolderPath = modRoot,
+                    WwmiFolderPath = wwmiRoot
+                };
+
+                vm.SelectedDirectoryItem = new DirectoryItemViewModel
+                {
+                    Name = "[200]FancyDress",
+                    FullPath = modDirectory,
+                    Id = "200",
+                    IsDirectory = false
+                };
+
+                Assert.Equal(modConfigPath, vm.SelectedConfigPath);
+                Assert.False(vm.ToggleConfigSourceCommand.CanExecute(null));
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void ToggleConfigSourceCommand_ShouldBlockWhenCurrentSourceHasUnsavedChanges()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
+            var modRoot = Path.Combine(tempRoot, "Mods");
+            var wwmiRoot = Path.Combine(tempRoot, "WWMI");
+            var modDirectory = Path.Combine(modRoot, "Encore", "[200]FancyDress");
+            var wwmiDirectory = Path.Combine(wwmiRoot, "[Encore][200]FancyDress");
+            Directory.CreateDirectory(modDirectory);
+            Directory.CreateDirectory(wwmiDirectory);
+
+            try
+            {
+                var modConfigPath = Path.Combine(modDirectory, "mod.ini");
+                var wwmiConfigPath = Path.Combine(wwmiDirectory, "mod.ini");
+                File.WriteAllText(modConfigPath, "[Constants]\nglobal persist $value = 1\n");
+                File.WriteAllText(wwmiConfigPath, "[Constants]\nglobal persist $value = 9\n");
+
+                var messages = new TestMessageService();
+                var vm = new MainViewModel(new FileSystemService(), messages)
+                {
+                    ModFolderPath = modRoot,
+                    WwmiFolderPath = wwmiRoot
+                };
+
+                vm.SelectedDirectoryItem = new DirectoryItemViewModel
+                {
+                    Name = "[200]FancyDress",
+                    FullPath = modDirectory,
+                    Id = "200",
+                    IsDirectory = false
+                };
+
+                vm.RawConfigEditorText += "\n; unsaved";
+
+                Assert.True(vm.ToggleConfigSourceCommand.CanExecute(null));
+
+                vm.ToggleConfigSourceCommand.Execute(null);
+
+                Assert.Equal(modConfigPath, vm.SelectedConfigPath);
+                Assert.Equal("Mod配置", vm.CurrentConfigSourceText);
+                Assert.Contains("未保存改动", messages.LastInfoMessage ?? string.Empty);
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void SyncModToWwmiCommand_ShouldCommitCurrentSourceRawChangesBeforeSync()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
+            var modRoot = Path.Combine(tempRoot, "Mods");
+            var wwmiRoot = Path.Combine(tempRoot, "WWMI");
+            var modDirectory = Path.Combine(modRoot, "Encore", "[200]FancyDress");
+            var wwmiDirectory = Path.Combine(wwmiRoot, "[Encore][200]FancyDress");
+            Directory.CreateDirectory(modDirectory);
+            Directory.CreateDirectory(wwmiDirectory);
+
+            try
+            {
+                var modConfigPath = Path.Combine(modDirectory, "mod.ini");
+                var wwmiConfigPath = Path.Combine(wwmiDirectory, "mod.ini");
+                File.WriteAllText(modConfigPath, "[Constants]\nglobal persist $value = 1\n");
+                File.WriteAllText(wwmiConfigPath, "[Constants]\nglobal persist $value = 1\n");
+
+                var messages = new TestMessageService();
+                var vm = new MainViewModel(new FileSystemService(), messages)
+                {
+                    ModFolderPath = modRoot,
+                    WwmiFolderPath = wwmiRoot
+                };
+
+                vm.SelectedDirectoryItem = new DirectoryItemViewModel
+                {
+                    Name = "[200]FancyDress",
+                    FullPath = modDirectory,
+                    Id = "200",
+                    IsDirectory = false
+                };
+
+                vm.RawConfigEditorText += "\n; sync raw note";
+
+                Assert.True(vm.IsRawConfigDirty);
+                Assert.True(vm.SyncModToWwmiCommand.CanExecute(null));
+
+                vm.SyncModToWwmiCommand.Execute(null);
+
+                Assert.False(vm.IsRawConfigDirty);
+                Assert.False(vm.HasPendingConfigChanges);
+                Assert.Contains("; sync raw note", File.ReadAllText(modConfigPath));
+                Assert.Contains("; sync raw note", File.ReadAllText(wwmiConfigPath));
+                Assert.Contains("已同步", messages.LastInfoMessage ?? string.Empty);
             }
             finally
             {
@@ -1479,6 +1909,60 @@ namespace UnitTests
                 var visibilityHistory = Assert.Single(vm.ModificationHistoryItems);
                 Assert.Equal("模型显示修改", visibilityHistory.OperationTypeText);
                 Assert.Contains("隐藏", visibilityHistory.SummaryText);
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+            }
+        }
+
+        [Fact]
+        public void ApplyVisibilityChangeCommand_ShouldAllowRestoringDirectlyHiddenUnboundVisibilityItem()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
+            var modRoot = Path.Combine(tempRoot, "Mods");
+            var modDirectory = Path.Combine(modRoot, "Rover Female", "[636196]rover female gold 32lodfix");
+            Directory.CreateDirectory(modDirectory);
+
+            try
+            {
+                var configPath = Path.Combine(modDirectory, "mod.ini");
+                File.WriteAllText(
+                    configPath,
+                    "[TextureOverrideComponent0]\n" +
+                    "; Draw Component 0.GOLD\n" +
+                    "drawindexed = 12, 0, 0\n");
+
+                var messages = new TestMessageService();
+                var vm = new MainViewModel(new FileSystemService(), messages)
+                {
+                    ModFolderPath = modRoot
+                };
+
+                vm.SelectedDirectoryItem = new DirectoryItemViewModel
+                {
+                    Name = "[636196]rover female gold 32lodfix",
+                    FullPath = modDirectory,
+                    Id = "636196",
+                    IsDirectory = false
+                };
+
+                vm.SelectedVisibilityItem = Assert.Single(vm.SelectedVisibilityItems);
+                vm.VisibilityTargetIsVisible = false;
+                vm.ApplyVisibilityChangeCommand.Execute(null);
+
+                vm.VisibilityTargetIsVisible = true;
+
+                Assert.True(vm.ApplyVisibilityChangeCommand.CanExecute(null));
+
+                vm.ApplyVisibilityChangeCommand.Execute(null);
+
+                Assert.DoesNotContain("if 0", vm.RawConfigEditorText);
+                Assert.Contains("drawindexed = 12, 0, 0", vm.RawConfigEditorText);
+                Assert.Contains("设置为显示", vm.ModificationHistoryItems.Last().SummaryText);
             }
             finally
             {

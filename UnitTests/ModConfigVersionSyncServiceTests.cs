@@ -89,6 +89,34 @@ namespace UnitTests
         }
 
         [Fact]
+        public void DiscoverModCandidates_ShouldReturnMultipleConfigCandidatesForSingleModDirectory()
+        {
+            var tempRoot = CreateTempRoot();
+            var modDirectory = Path.Combine(tempRoot, "Mods", "13 Rover", "[589362] rover_multiform_a9e13");
+            Directory.CreateDirectory(modDirectory);
+            File.WriteAllText(Path.Combine(modDirectory, "mod.ini"), "[Constants]\n");
+            File.WriteAllText(Path.Combine(modDirectory, "form_a.ini"), "[Constants]\n");
+            File.WriteAllText(Path.Combine(modDirectory, "form_b.ini"), "[Constants]\n");
+
+            try
+            {
+                var service = CreateService();
+
+                var candidates = service.DiscoverModCandidates(modDirectory);
+
+                Assert.Equal(3, candidates.Count);
+                Assert.All(candidates, candidate => Assert.Equal(modDirectory, candidate.FullPath));
+                Assert.Contains(candidates, candidate => candidate.ConfigRelativePath.Equals("mod.ini", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(candidates, candidate => candidate.ConfigRelativePath.Equals("form_a.ini", StringComparison.OrdinalIgnoreCase));
+                Assert.Contains(candidates, candidate => candidate.ConfigRelativePath.Equals("form_b.ini", StringComparison.OrdinalIgnoreCase));
+            }
+            finally
+            {
+                DeleteTempRoot(tempRoot);
+            }
+        }
+
+        [Fact]
         public void CreatePairingJobs_ShouldPairSingleOldAndNewCandidateByNormalizedKey()
         {
             var tempRoot = CreateTempRoot();

@@ -818,6 +818,19 @@
                             <TextBlock Margin="0,6,0,0"
                                        Style="{StaticResource CaptionTextStyle}"
                                        Text="{Binding SelectedConfigPath, StringFormat=配置文件：{0}}"/>
+                            <DockPanel Margin="0,6,0,0"
+                                       LastChildFill="True">
+                                <TextBlock DockPanel.Dock="Left"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           Text="配置切换："/>
+                                <ComboBox Margin="8,0,0,0"
+                                          MinHeight="28"
+                                          ItemsSource="{Binding SelectedConfigCandidates}"
+                                          DisplayMemberPath="DisplayPath"
+                                          SelectedValuePath="FullPath"
+                                          SelectedValue="{Binding SelectedConfigCandidatePath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                            </DockPanel>
                         </StackPanel>
                     </Border>
 
@@ -827,41 +840,6 @@
                         <StackPanel>
                             <TextBlock Text="{Binding SelectedConfigEditStatus}"
                                        TextWrapping="Wrap"/>
-                            <TextBlock Margin="0,6,0,0"
-                                       Style="{StaticResource CaptionTextStyle}"
-                                       Text="{Binding ConfigBufferStateText}"/>
-
-                            <Grid Margin="0,10,0,0">
-                                <Grid Width="528"
-                                      HorizontalAlignment="Left">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="8"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="8"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="8"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <Button Grid.Column="0"
-                                            Content="保存到 Mod"
-                                            Command="{Binding SaveConfigToModCommand}"
-                                            Style="{StaticResource CompactActionButtonStyle}"/>
-                                    <Button Grid.Column="2"
-                                            Content="保存到 WWMI"
-                                            Command="{Binding SaveConfigToWwmiCommand}"
-                                            Style="{StaticResource CompactActionButtonStyle}"/>
-                                    <Button Grid.Column="4"
-                                            Content="Mod 同步到 WWMI"
-                                            Command="{Binding SyncModToWwmiCommand}"
-                                            Style="{StaticResource CompactActionButtonStyle}"/>
-                                    <Button Grid.Column="6"
-                                            Content="WWMI 同步到 Mod"
-                                            Command="{Binding SyncWwmiToModCommand}"
-                                            Style="{StaticResource CompactActionButtonStyle}"/>
-                                </Grid>
-                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -1405,6 +1383,16 @@
                             <TextBlock Margin="0,4,0,0"
                                        Text="{Binding SelectedDirectoryItem.Name, TargetNullValue=未选择 MOD}"
                                        Style="{StaticResource SectionTitleStyle}"/>
+                            <DockPanel Margin="0,8,0,0"
+                                       LastChildFill="False">
+                                <TextBlock DockPanel.Dock="Left"
+                                           VerticalAlignment="Center"
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           Text="{Binding CurrentConfigSourceText, StringFormat=当前显示：{0}}"/>
+                                <Button Content="{Binding ToggleConfigSourceButtonText}"
+                                        Command="{Binding ToggleConfigSourceCommand}"
+                                        Style="{StaticResource CompactActionButtonStyle}"/>
+                            </DockPanel>
                             <TextBlock Margin="0,8,0,0"
                                        Style="{StaticResource CaptionTextStyle}"
                                        Text="{Binding SelectedConfigPath, StringFormat=当前文件：{0}}"/>
@@ -1419,6 +1407,7 @@
                             Background="#FFF8FBFC">
                         <Grid>
                             <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
@@ -1443,15 +1432,31 @@
 
                             <DockPanel Grid.Row="1"
                                        Margin="0,8,0,0"
-                                       LastChildFill="False">
-                                <TextBlock DockPanel.Dock="Left"
-                                           VerticalAlignment="Center"
+                                       LastChildFill="True">
+                                <TextBlock VerticalAlignment="Center"
                                            Style="{StaticResource CaptionTextStyle}"
-                                           Text="文本不自动换行，可直接横向滚动查看长行。"/>
-                                <Button Content="保存到当前文件"
-                                        Command="{Binding SaveRawConfigCommand}"
-                                        Style="{StaticResource CompactActionButtonStyle}"/>
+                                           Text="文本不自动换行，可直接横向滚动查看长行。配置分析和原文编辑的改动都请使用下方四个按钮保存或同步。"
+                                           TextWrapping="Wrap"/>
                             </DockPanel>
+
+                            <WrapPanel Grid.Row="2"
+                                       Margin="0,10,0,0">
+                                <Button Content="保存到 Mod"
+                                        Command="{Binding SaveConfigToModCommand}"
+                                        Style="{StaticResource CompactActionButtonStyle}"/>
+                                <Button Margin="8,0,0,0"
+                                        Content="保存到 WWMI"
+                                        Command="{Binding SaveConfigToWwmiCommand}"
+                                        Style="{StaticResource CompactActionButtonStyle}"/>
+                                <Button Margin="8,0,0,0"
+                                        Content="Mod 同步到 WWMI"
+                                        Command="{Binding SyncModToWwmiCommand}"
+                                        Style="{StaticResource CompactActionButtonStyle}"/>
+                                <Button Margin="8,0,0,0"
+                                        Content="WWMI 同步到 Mod"
+                                        Command="{Binding SyncWwmiToModCommand}"
+                                        Style="{StaticResource CompactActionButtonStyle}"/>
+                            </WrapPanel>
                         </Grid>
                     </Border>
 

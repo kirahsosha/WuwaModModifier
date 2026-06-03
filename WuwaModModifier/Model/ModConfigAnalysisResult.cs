@@ -82,6 +82,7 @@ namespace WuwaModModifier.Model
         public List<string> ControllingParameters { get; set; } = new List<string>();
         public List<string> ControllingKeySections { get; set; } = new List<string>();
         public List<string> ControllingKeyBindings { get; set; } = new List<string>();
+        public List<string> ControlExpressions { get; set; } = new List<string>();
         public ModConfigVisibilityConfidence Confidence { get; set; }
     }
 }

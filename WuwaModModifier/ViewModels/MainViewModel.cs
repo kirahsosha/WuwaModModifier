@@ -40,6 +40,9 @@ namespace WuwaModModifier.ViewModels
         private string _wwmiPathLoadStatusText;
         private string _otherFolderPath;
         private string _selectedConfigPath;
+        private string _selectedConfigCandidatesText;
+        private ObservableCollection<ConfigCandidateOption> _selectedConfigCandidates;
+        private string? _selectedConfigCandidatePath;
         private string _selectedConfigAnalysisStatus;
         private string _selectedConfigEditStatus;
         private string _standardToggleTemplatePath;
@@ -82,8 +85,10 @@ namespace WuwaModModifier.ViewModels
         private bool _isRawConfigDirty;
         private bool _hideInternalSystemParameters;
         private bool _visibilityTargetIsVisible;
+        private ModConfigSaveTarget _selectedConfigSource;
         private ToggleCreationMode _selectedToggleCreationMode;
         private VisibilityBindingMode _selectedVisibilityBindingMode;
+        private bool _isUpdatingSelectedConfigCandidate;
 
         public MainViewModel()
             : this(
@@ -122,6 +127,9 @@ namespace WuwaModModifier.ViewModels
             _wwmiPathLoadStatusText = string.Empty;
             _otherFolderPath = AppConfig.OtherFolderPath;
             _selectedConfigPath = string.Empty;
+            _selectedConfigCandidatesText = string.Empty;
+            _selectedConfigCandidates = new ObservableCollection<ConfigCandidateOption>();
+            _selectedConfigCandidatePath = null;
             _selectedConfigAnalysisStatus = "请选择具体 MOD 查看配置分析。";
             _selectedConfigEditStatus = "当前无可编辑配置。";
             _standardToggleTemplatePath = ResolveDefaultStandardToggleTemplatePath();
@@ -155,6 +163,7 @@ namespace WuwaModModifier.ViewModels
             _isRawConfigDirty = false;
             _hideInternalSystemParameters = true;
             _visibilityTargetIsVisible = true;
+            _selectedConfigSource = ModConfigSaveTarget.ModDirectory;
             _selectedToggleCreationMode = ToggleCreationMode.ExistingParameter;
             _selectedVisibilityBindingMode = VisibilityBindingMode.ExistingParameter;
 
@@ -171,6 +180,7 @@ namespace WuwaModModifier.ViewModels
             CreateParameterCommand = new RelayCommand(ExecuteCreateParameter, CanCreateParameter);
             ApplyVisibilityChangeCommand = new RelayCommand(ExecuteApplyVisibilityChange, CanApplyVisibilityChange);
             ApplyVisibilityBindingCommand = new RelayCommand(ExecuteApplyVisibilityBinding, CanApplyVisibilityBinding);
+            ToggleConfigSourceCommand = new RelayCommand(ExecuteToggleConfigSource, CanToggleConfigSource);
             SaveRawConfigCommand = new RelayCommand(ExecuteSaveRawConfig, CanSaveRawConfig);
             SaveConfigToModCommand = new RelayCommand(ExecuteSaveConfigToMod, CanSaveConfigToMod);
             SaveConfigToWwmiCommand = new RelayCommand(ExecuteSaveConfigToWwmi, CanSaveConfigToWwmi);
@@ -218,6 +228,32 @@ namespace WuwaModModifier.ViewModels
             }
         }
 
+        public string SelectedConfigCandidatesText
+        {
+            get => _selectedConfigCandidatesText;
+            private set => SetProperty(ref _selectedConfigCandidatesText, value);
+        }
+
+        public ObservableCollection<ConfigCandidateOption> SelectedConfigCandidates
+        {
+            get => _selectedConfigCandidates;
+            private set => SetProperty(ref _selectedConfigCandidates, value);
+        }
+
+        public string? SelectedConfigCandidatePath
+        {
+            get => _selectedConfigCandidatePath;
+            set
+            {
+                if (!SetProperty(ref _selectedConfigCandidatePath, value) || _isUpdatingSelectedConfigCandidate)
+                {
+                    return;
+                }
+
+                HandleSelectedConfigCandidateChanged(value);
+            }
+        }
+
         public string SelectedConfigAnalysisStatus
         {
             get => _selectedConfigAnalysisStatus;
@@ -260,9 +296,13 @@ namespace WuwaModModifier.ViewModels
         public string RawConfigEditorStatusText =>
             string.IsNullOrWhiteSpace(SelectedConfigPath)
                 ? "当前未选择配置文件。"
-                : IsRawConfigDirty
-                    ? "右侧原文存在未保存修改，请先保存回当前文件。"
-                    : "右侧原文与当前源文件一致。";
+                : IsRawConfigDirty && HasPendingConfigChanges
+                    ? $"当前显示{CurrentConfigSourceText}，配置分析和右侧原文都有未保存修改，请使用下方四个按钮保存或同步。"
+                    : IsRawConfigDirty
+                        ? $"当前显示{CurrentConfigSourceText}，右侧原文有未保存修改，请使用下方四个按钮保存或同步。"
+                        : HasPendingConfigChanges
+                            ? $"当前显示{CurrentConfigSourceText}，配置分析中的修改尚未写回当前来源，请使用下方四个按钮保存或同步。"
+                            : $"当前显示{CurrentConfigSourceText}，右侧原文与当前来源文件一致。";
 
         public string SaveToModPreviewPath => GetSavePreviewPath(ModConfigSaveTarget.ModDirectory);
 
@@ -280,15 +320,24 @@ namespace WuwaModModifier.ViewModels
                 if (SetProperty(ref _hasPendingConfigChanges, value))
                 {
                     OnPropertyChanged(nameof(ConfigBufferStateText));
+                    OnPropertyChanged(nameof(RawConfigEditorStatusText));
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
         }
 
         public string ConfigBufferStateText =>
-            HasPendingConfigChanges
-                ? "缓冲区存在尚未保存到当前源文件的修改。"
-                : "缓冲区与当前源文件一致。";
+            HasPendingConfigChanges || IsRawConfigDirty
+                ? $"当前工作内容仍有未写回{CurrentConfigSourceText}的改动。"
+                : $"当前工作内容与{CurrentConfigSourceText}一致。";
+
+        public string CurrentConfigSourceText => _selectedConfigSource == ModConfigSaveTarget.ModDirectory
+            ? "Mod配置"
+            : "WWMI配置";
+
+        public string ToggleConfigSourceButtonText => _selectedConfigSource == ModConfigSaveTarget.ModDirectory
+            ? "切换显示WWMI配置"
+            : "切换显示Mod配置";
 
         public string StandardToggleTemplatePath
         {
@@ -689,6 +738,7 @@ namespace WuwaModModifier.ViewModels
         public ICommand CreateParameterCommand { get; }
         public ICommand ApplyVisibilityChangeCommand { get; }
         public ICommand ApplyVisibilityBindingCommand { get; }
+        public ICommand ToggleConfigSourceCommand { get; }
         public ICommand SaveRawConfigCommand { get; }
         public ICommand SaveConfigToModCommand { get; }
         public ICommand SaveConfigToWwmiCommand { get; }
@@ -779,9 +829,14 @@ namespace WuwaModModifier.ViewModels
 
         private void RefreshSelectedConfigAnalysis()
         {
+            var preferredConfigPath = SelectedConfigCandidatePath;
+
             ClearAnalysisCollections();
             ClearConfigEditingState();
             SelectedConfigPath = string.Empty;
+            SelectedConfigCandidatesText = string.Empty;
+            ReplaceCollection(SelectedConfigCandidates, Enumerable.Empty<ConfigCandidateOption>());
+            SetSelectedConfigCandidatePathInternal(null);
 
             var selectedItem = SelectedDirectoryItem;
             if (selectedItem == null)
@@ -804,24 +859,91 @@ namespace WuwaModModifier.ViewModels
 
             try
             {
-                var configPath = _configDiscoveryService.GetPrimaryConfigPath(selectedItem.FullPath);
-                if (string.IsNullOrWhiteSpace(configPath))
+                if (!TryResolveConfigPathForCurrentSelection(selectedItem, out var resolvedSource, out var configPath, preferredConfigPath))
                 {
-                    SelectedConfigAnalysisStatus = "未找到主配置文件。";
+                    SelectedConfigAnalysisStatus = _selectedConfigSource == ModConfigSaveTarget.WwmiDirectory
+                        ? "未找到 WWMI 主配置文件。"
+                        : "未找到主配置文件。";
                     return;
                 }
 
+                SetSelectedConfigSource(resolvedSource);
+                var configCandidates = GetConfigCandidatesForSource(selectedItem, resolvedSource);
+                if (configCandidates.Count == 0)
+                {
+                    configCandidates = new List<string> { configPath };
+                }
+
+                var candidateOptions = BuildConfigCandidateOptions(configCandidates);
+                ReplaceCollection(SelectedConfigCandidates, candidateOptions);
+                SelectedConfigCandidatesText = string.Join(Environment.NewLine, configCandidates);
+
+                var selectedCandidatePath = ResolvePreferredConfigPath(configCandidates, preferredConfigPath ?? configPath);
+                SetSelectedConfigCandidatePathInternal(selectedCandidatePath);
                 SelectedConfigPath = configPath;
-                ApplyBufferAnalysis(_configUpdateService.LoadBuffer(configPath), "已加载配置缓冲区。");
+                ApplyBufferAnalysis(
+                    _configUpdateService.LoadBuffer(configPath),
+                    configCandidates.Count > 1
+                        ? $"已发现 {configCandidates.Count} 个配置候选，当前加载{CurrentConfigSourceText}缓冲区。"
+                        : $"已加载{CurrentConfigSourceText}缓冲区。");
             }
             catch (Exception ex)
             {
                 LogManager.Error("RefreshSelectedConfigAnalysis: ", ex);
                 SelectedConfigPath = string.Empty;
+                SelectedConfigCandidatesText = string.Empty;
+                ReplaceCollection(SelectedConfigCandidates, Enumerable.Empty<ConfigCandidateOption>());
+                SetSelectedConfigCandidatePathInternal(null);
                 ClearAnalysisCollections();
                 ClearConfigEditingState();
                 SelectedConfigAnalysisStatus = "配置分析失败。";
             }
+        }
+
+        private void HandleSelectedConfigCandidateChanged(string? candidatePath)
+        {
+            if (string.IsNullOrWhiteSpace(candidatePath) ||
+                string.IsNullOrWhiteSpace(SelectedConfigPath) ||
+                candidatePath.Equals(SelectedConfigPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (HasCurrentWorkingChanges)
+            {
+                _messages.ShowInfo("当前配置仍有未保存改动，请先使用右侧四个按钮保存或同步后再切换候选配置。", "切换候选配置");
+                SetSelectedConfigCandidatePathInternal(SelectedConfigPath);
+                return;
+            }
+
+            if (!_fileSystem.FileExists(candidatePath))
+            {
+                SetSelectedConfigCandidatePathInternal(SelectedConfigPath);
+                return;
+            }
+
+            try
+            {
+                ClearAnalysisCollections();
+                ClearConfigEditingState();
+                SelectedConfigPath = candidatePath;
+                ApplyBufferAnalysis(
+                    _configUpdateService.LoadBuffer(candidatePath),
+                    $"已切换到候选配置：{Path.GetFileName(candidatePath)}。");
+            }
+            catch (Exception ex)
+            {
+                LogManager.Error("HandleSelectedConfigCandidateChanged: ", ex);
+                SetSelectedConfigCandidatePathInternal(SelectedConfigPath);
+                SelectedConfigAnalysisStatus = "切换候选配置失败。";
+            }
+        }
+
+        private void SetSelectedConfigCandidatePathInternal(string? configPath)
+        {
+            _isUpdatingSelectedConfigCandidate = true;
+            SelectedConfigCandidatePath = configPath;
+            _isUpdatingSelectedConfigCandidate = false;
         }
 
         private void ClearAnalysisCollections()
@@ -1815,7 +1937,8 @@ namespace WuwaModModifier.ViewModels
                 !IsRawConfigDirty &&
                 SelectedVisibilityItem != null &&
                 (SelectedVisibilityItem.CanToggleSafely ||
-                    (!VisibilityTargetIsVisible && SelectedVisibilityItem.CanBindSafely));
+                    (SelectedVisibilityItem.CanBindSafely &&
+                        (!VisibilityTargetIsVisible || SelectedVisibilityItem.IsDirectlyHidden)));
         }
 
         private void ExecuteApplyVisibilityBinding()
@@ -1917,43 +2040,12 @@ namespace WuwaModModifier.ViewModels
 
         private void ExecuteSaveRawConfig()
         {
-            if (string.IsNullOrWhiteSpace(SelectedConfigPath))
-            {
-                return;
-            }
-
-            var contentToSave = NormalizeLineEndings(RawConfigEditorText, _rawConfigLineEnding);
-            var rawBuffer = new ModConfigEditBuffer
-            {
-                SourcePath = SelectedConfigPath,
-                Content = contentToSave,
-                LineEnding = _rawConfigLineEnding
-            };
-
-            try
-            {
-                _configUpdateService.SaveBuffer(rawBuffer, SelectedConfigPath);
-                ApplyBufferAnalysis(
-                    _configUpdateService.LoadBuffer(SelectedConfigPath),
-                    "已将右侧原文保存到当前配置文件。",
-                    preferredToggleSection: SelectedToggleItem?.SectionName,
-                    preferredParameterName: SelectedParameterItem?.Name,
-                    preferredVisibilitySection: SelectedVisibilityItem?.SectionName,
-                    preferredVisibilityLabel: SelectedVisibilityItem?.DrawLabelsText);
-                _messages.ShowInfo(SelectedConfigEditStatus);
-            }
-            catch (Exception ex)
-            {
-                LogManager.Error("SaveRawConfig: ", ex);
-                _messages.ShowError($"保存右侧原文失败：{ex.Message}");
-            }
+            ExecuteSaveConfig(_selectedConfigSource);
         }
 
         private bool CanSaveRawConfig()
         {
-            return _selectedConfigBuffer != null &&
-                !string.IsNullOrWhiteSpace(SelectedConfigPath) &&
-                IsRawConfigDirty;
+            return CanSaveConfig(_selectedConfigSource);
         }
 
         private void ExecuteSaveConfigToMod()
@@ -1968,38 +2060,42 @@ namespace WuwaModModifier.ViewModels
 
         private void ExecuteSaveConfig(ModConfigSaveTarget saveTarget)
         {
-            if (_selectedConfigBuffer == null)
+            if (!TryBuildCurrentWorkingBuffer(out var workingBuffer, out var errorMessage))
             {
+                if (!string.IsNullOrWhiteSpace(errorMessage))
+                {
+                    _messages.ShowError(errorMessage);
+                }
                 return;
             }
 
             try
             {
                 var preview = _configUpdateService.PreviewSaveTarget(SelectedConfigPath, saveTarget, ModFolderPath, WwmiFolderPath);
-                if (!_messages.Confirm($"即将把当前缓冲内容写入：\n{preview.TargetPath}\n\n该操作{GetTargetActionText(preview.TargetExists)}，是否继续？", "确认保存"))
+                var isCurrentSourceTarget = IsSourceSaveTarget(saveTarget);
+                var promptActionText = isCurrentSourceTarget
+                    ? "即将把当前工作内容保存回当前显示来源文件"
+                    : "即将把当前工作内容导出到目标文件";
+                if (!_messages.Confirm($"{promptActionText}：\n{preview.TargetPath}\n\n该操作{GetTargetActionText(preview.TargetExists)}，是否继续？", "确认保存"))
                 {
                     return;
                 }
 
-                var saveResult = _configUpdateService.SaveBufferToTarget(
-                    _selectedConfigBuffer,
-                    saveTarget,
-                    ModFolderPath,
-                    WwmiFolderPath);
-
-                if (IsSourceSaveTarget(saveTarget))
+                ModConfigSaveResult saveResult;
+                if (isCurrentSourceTarget)
                 {
-                    ApplyBufferAnalysis(
-                        _configUpdateService.LoadBuffer(SelectedConfigPath),
-                        $"已保存到 {saveResult.TargetPath}。",
-                        preferredToggleSection: SelectedToggleItem?.SectionName,
-                        preferredParameterName: SelectedParameterItem?.Name,
-                        preferredVisibilitySection: SelectedVisibilityItem?.SectionName,
-                        preferredVisibilityLabel: SelectedVisibilityItem?.DrawLabelsText);
+                    saveResult = SaveWorkingBufferToCurrentSource(workingBuffer, $"已保存到 {preview.TargetPath}。");
                 }
                 else
                 {
-                    SelectedConfigEditStatus = $"已导出到 {saveResult.TargetPath}。";
+                    saveResult = _configUpdateService.SaveBufferToTarget(
+                        workingBuffer,
+                        saveTarget,
+                        ModFolderPath,
+                        WwmiFolderPath);
+                    SelectedConfigEditStatus = HasCurrentWorkingChanges
+                        ? $"已导出当前工作内容到 {saveResult.TargetPath}，当前{CurrentConfigSourceText}仍有未保存改动。"
+                        : $"已导出到 {saveResult.TargetPath}。";
                 }
 
                 OnPathPreviewChanged();
@@ -2015,20 +2111,12 @@ namespace WuwaModModifier.ViewModels
 
         private bool CanSaveConfigToMod()
         {
-            return _selectedConfigBuffer != null &&
-                !IsRawConfigDirty &&
-                HasPendingConfigChanges &&
-                !string.IsNullOrWhiteSpace(ModFolderPath) &&
-                !string.IsNullOrWhiteSpace(SelectedConfigPath);
+            return CanSaveConfig(ModConfigSaveTarget.ModDirectory);
         }
 
         private bool CanSaveConfigToWwmi()
         {
-            return _selectedConfigBuffer != null &&
-                !IsRawConfigDirty &&
-                HasPendingConfigChanges &&
-                !string.IsNullOrWhiteSpace(WwmiFolderPath) &&
-                !string.IsNullOrWhiteSpace(SelectedConfigPath);
+            return CanSaveConfig(ModConfigSaveTarget.WwmiDirectory);
         }
 
         private void ExecuteSyncModToWwmi()
@@ -2050,10 +2138,31 @@ namespace WuwaModModifier.ViewModels
 
             try
             {
+                var syncSourceTarget = GetSyncSourceSaveTarget(direction);
+                var shouldCommitCurrentSource = IsSourceSaveTarget(syncSourceTarget) && HasCurrentWorkingChanges;
+                if (!IsSourceSaveTarget(syncSourceTarget) && HasCurrentWorkingChanges)
+                {
+                    _messages.ShowInfo($"当前显示{CurrentConfigSourceText}且仍有未保存改动，请先使用四个按钮将改动写回当前来源后，再执行反向同步。", "同步配置");
+                    return;
+                }
+
                 var preview = _configUpdateService.PreviewSync(SelectedConfigPath, direction, ModFolderPath, WwmiFolderPath);
-                if (!_messages.Confirm($"即将同步配置文件：\n源：{preview.SourcePath}\n目标：{preview.TargetPath}\n\n该操作{GetTargetActionText(preview.TargetExists)}，是否继续？", "确认同步"))
+                var commitHintText = shouldCommitCurrentSource
+                    ? "\n\n当前工作内容会先保存回当前显示来源文件，再执行同步。"
+                    : string.Empty;
+                if (!_messages.Confirm($"即将同步配置文件：\n源：{preview.SourcePath}\n目标：{preview.TargetPath}\n\n该操作{GetTargetActionText(preview.TargetExists)}，是否继续？{commitHintText}", "确认同步"))
                 {
                     return;
+                }
+
+                if (shouldCommitCurrentSource)
+                {
+                    if (!TryBuildCurrentWorkingBuffer(out var workingBuffer, out var errorMessage))
+                    {
+                        throw new InvalidOperationException(errorMessage);
+                    }
+
+                    SaveWorkingBufferToCurrentSource(workingBuffer, $"已保存到 {SelectedConfigPath}。");
                 }
 
                 var syncResult = _configUpdateService.SyncConfig(SelectedConfigPath, direction, ModFolderPath, WwmiFolderPath);
@@ -2085,6 +2194,12 @@ namespace WuwaModModifier.ViewModels
                 return false;
             }
 
+            var syncSourceTarget = GetSyncSourceSaveTarget(direction);
+            if (HasCurrentWorkingChanges && !IsSourceSaveTarget(syncSourceTarget))
+            {
+                return false;
+            }
+
             try
             {
                 var preview = _configUpdateService.PreviewSync(SelectedConfigPath, direction, ModFolderPath, WwmiFolderPath);
@@ -2098,47 +2213,64 @@ namespace WuwaModModifier.ViewModels
 
         private bool CanSyncConfigBase()
         {
-            return !IsRawConfigDirty &&
-                !HasPendingConfigChanges &&
-                !string.IsNullOrWhiteSpace(SelectedConfigPath) &&
+            return !string.IsNullOrWhiteSpace(SelectedConfigPath) &&
                 !string.IsNullOrWhiteSpace(ModFolderPath) &&
                 !string.IsNullOrWhiteSpace(WwmiFolderPath);
         }
 
         private bool IsSourceSaveTarget(ModConfigSaveTarget saveTarget)
         {
-            if (saveTarget == ModConfigSaveTarget.ModDirectory && IsPathUnderRoot(SelectedConfigPath, ModFolderPath))
-            {
-                return true;
-            }
+            return _selectedConfigSource == saveTarget;
+        }
 
-            if (saveTarget == ModConfigSaveTarget.WwmiDirectory && IsPathUnderRoot(SelectedConfigPath, WwmiFolderPath))
-            {
-                return true;
-            }
-
-            var configDirectory = Path.GetDirectoryName(SelectedConfigPath);
-            if (string.IsNullOrWhiteSpace(configDirectory))
+        private bool CanSaveConfig(ModConfigSaveTarget saveTarget)
+        {
+            if (_selectedConfigBuffer == null || string.IsNullOrWhiteSpace(SelectedConfigPath))
             {
                 return false;
             }
 
-            var (characterName, id, modName) = ModPathHelper.ParseWwmiFolderPath(configDirectory);
-            if (!string.IsNullOrWhiteSpace(characterName) &&
-                !string.IsNullOrWhiteSpace(id) &&
-                !string.IsNullOrWhiteSpace(modName))
+            if (saveTarget == ModConfigSaveTarget.ModDirectory && string.IsNullOrWhiteSpace(ModFolderPath))
             {
-                return saveTarget == ModConfigSaveTarget.WwmiDirectory;
+                return false;
             }
 
-            var folderName = Path.GetFileName(configDirectory);
-            var parentFolder = Path.GetDirectoryName(configDirectory);
-            var (modId, parsedModName) = ModPathHelper.ParseModFolderName(folderName);
-            var parsedCharacterName = ModPathHelper.GetCharacterNameFromFolder(parentFolder ?? string.Empty);
-            return !string.IsNullOrWhiteSpace(modId) &&
-                !string.IsNullOrWhiteSpace(parsedModName) &&
-                !string.IsNullOrWhiteSpace(parsedCharacterName) &&
-                saveTarget == ModConfigSaveTarget.ModDirectory;
+            if (saveTarget == ModConfigSaveTarget.WwmiDirectory && string.IsNullOrWhiteSpace(WwmiFolderPath))
+            {
+                return false;
+            }
+
+            return HasCurrentWorkingChanges;
+        }
+
+        private void ExecuteToggleConfigSource()
+        {
+            if (SelectedDirectoryItem == null)
+            {
+                return;
+            }
+
+            if (HasCurrentWorkingChanges)
+            {
+                _messages.ShowInfo("当前配置仍有未保存改动，请先使用右侧四个按钮保存或同步后再切换显示来源。", "切换配置来源");
+                return;
+            }
+
+            var nextSource = GetAlternateConfigSource(_selectedConfigSource);
+            if (!TryResolveConfigPathForSource(SelectedDirectoryItem, nextSource, out _))
+            {
+                return;
+            }
+
+            SetSelectedConfigSource(nextSource);
+            RefreshSelectedConfigAnalysis();
+        }
+
+        private bool CanToggleConfigSource()
+        {
+            return SelectedDirectoryItem != null &&
+                !SelectedDirectoryItem.IsDirectory &&
+                TryResolveConfigPathForSource(SelectedDirectoryItem, GetAlternateConfigSource(_selectedConfigSource), out _);
         }
 
         private static bool IsPathUnderRoot(string filePath, string rootPath)
@@ -2183,6 +2315,298 @@ namespace WuwaModModifier.ViewModels
             OnPropertyChanged(nameof(SyncWwmiToModPreviewText));
             CommandManager.InvalidateRequerySuggested();
         }
+
+        private bool HasCurrentWorkingChanges => _selectedConfigBuffer != null && (HasPendingConfigChanges || IsRawConfigDirty);
+
+        private bool TryBuildCurrentWorkingBuffer(out ModConfigEditBuffer workingBuffer, out string errorMessage)
+        {
+            if (_selectedConfigBuffer == null || string.IsNullOrWhiteSpace(SelectedConfigPath))
+            {
+                workingBuffer = new ModConfigEditBuffer();
+                errorMessage = "当前无可编辑配置。";
+                return false;
+            }
+
+            var lineEnding = string.IsNullOrWhiteSpace(_rawConfigLineEnding)
+                ? Environment.NewLine
+                : _rawConfigLineEnding;
+            workingBuffer = new ModConfigEditBuffer
+            {
+                SourcePath = SelectedConfigPath,
+                Content = IsRawConfigDirty
+                    ? NormalizeLineEndings(RawConfigEditorText, lineEnding)
+                    : _selectedConfigBuffer.Content,
+                LineEnding = lineEnding,
+                AppliedChanges = _selectedConfigBuffer.AppliedChanges.ToList()
+            };
+            errorMessage = string.Empty;
+            return true;
+        }
+
+        private ModConfigSaveResult SaveWorkingBufferToCurrentSource(ModConfigEditBuffer workingBuffer, string editStatus)
+        {
+            var saveResult = _configUpdateService.SaveBuffer(workingBuffer, SelectedConfigPath);
+            ApplyBufferAnalysis(
+                _configUpdateService.LoadBuffer(SelectedConfigPath),
+                editStatus,
+                preferredToggleSection: SelectedToggleItem?.SectionName,
+                preferredParameterName: SelectedParameterItem?.Name,
+                preferredVisibilitySection: SelectedVisibilityItem?.SectionName,
+                preferredVisibilityLabel: SelectedVisibilityItem?.DrawLabelsText);
+            return saveResult;
+        }
+
+        private bool TryResolveConfigPathForCurrentSelection(
+            DirectoryItemViewModel selectedItem,
+            out ModConfigSaveTarget resolvedSource,
+            out string configPath,
+            string? preferredConfigPath = null)
+        {
+            resolvedSource = _selectedConfigSource;
+            var preferredPath = preferredConfigPath ?? SelectedConfigCandidatePath;
+            if (TryResolveConfigPathForSource(selectedItem, resolvedSource, out configPath, preferredPath))
+            {
+                return true;
+            }
+
+            if (resolvedSource == ModConfigSaveTarget.WwmiDirectory &&
+                TryResolveConfigPathForSource(selectedItem, ModConfigSaveTarget.ModDirectory, out configPath, preferredPath))
+            {
+                resolvedSource = ModConfigSaveTarget.ModDirectory;
+                return true;
+            }
+
+            configPath = string.Empty;
+            return false;
+        }
+
+        private bool TryResolveConfigPathForSource(
+            DirectoryItemViewModel selectedItem,
+            ModConfigSaveTarget source,
+            out string configPath,
+            string? preferredConfigPath = null)
+        {
+            configPath = string.Empty;
+            if (selectedItem == null ||
+                selectedItem.IsDirectory ||
+                string.IsNullOrWhiteSpace(selectedItem.FullPath) ||
+                !_fileSystem.DirectoryExists(selectedItem.FullPath))
+            {
+                return false;
+            }
+
+            try
+            {
+                var candidates = GetConfigCandidatesForSource(selectedItem, source);
+                configPath = ResolvePreferredConfigPath(candidates, preferredConfigPath);
+                return !string.IsNullOrWhiteSpace(configPath) && _fileSystem.FileExists(configPath);
+            }
+            catch
+            {
+                configPath = string.Empty;
+                return false;
+            }
+        }
+
+        private List<string> GetConfigCandidatesForSource(
+            DirectoryItemViewModel selectedItem,
+            ModConfigSaveTarget source)
+        {
+            if (selectedItem == null ||
+                selectedItem.IsDirectory ||
+                string.IsNullOrWhiteSpace(selectedItem.FullPath) ||
+                !_fileSystem.DirectoryExists(selectedItem.FullPath))
+            {
+                return new List<string>();
+            }
+
+            if (source == ModConfigSaveTarget.ModDirectory)
+            {
+                return _configDiscoveryService.GetConfigCandidates(selectedItem.FullPath).ToList();
+            }
+
+            var modConfigPath = _configDiscoveryService.GetPrimaryConfigPath(selectedItem.FullPath) ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(modConfigPath) || !_fileSystem.FileExists(modConfigPath))
+            {
+                return new List<string>();
+            }
+
+            var preview = _configUpdateService.PreviewSaveTarget(
+                modConfigPath,
+                ModConfigSaveTarget.WwmiDirectory,
+                ModFolderPath,
+                WwmiFolderPath);
+            var wwmiDirectory = Path.GetDirectoryName(preview.TargetPath);
+            if (string.IsNullOrWhiteSpace(wwmiDirectory) || !_fileSystem.DirectoryExists(wwmiDirectory))
+            {
+                return new List<string>();
+            }
+
+            return _configDiscoveryService.GetConfigCandidates(wwmiDirectory).ToList();
+        }
+
+        private static string ResolvePreferredConfigPath(IReadOnlyList<string> candidates, string? preferredConfigPath)
+        {
+            if (candidates.Count == 0)
+            {
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(preferredConfigPath))
+            {
+                var matched = candidates.FirstOrDefault(candidate =>
+                    candidate.Equals(preferredConfigPath, StringComparison.OrdinalIgnoreCase));
+                if (!string.IsNullOrWhiteSpace(matched))
+                {
+                    return matched;
+                }
+
+                var preferredFileName = Path.GetFileName(preferredConfigPath);
+                if (!string.IsNullOrWhiteSpace(preferredFileName))
+                {
+                    var sameNameCandidates = candidates
+                        .Where(candidate =>
+                            Path.GetFileName(candidate).Equals(preferredFileName, StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                    if (sameNameCandidates.Count == 1)
+                    {
+                        return sameNameCandidates[0];
+                    }
+
+                    if (sameNameCandidates.Count > 1)
+                    {
+                        var preferredSegments = ExtractPathSegments(preferredConfigPath);
+                        return sameNameCandidates
+                            .OrderByDescending(candidate => GetCommonSuffixSegmentCount(preferredSegments, ExtractPathSegments(candidate)))
+                            .ThenBy(candidate => candidate, StringComparer.OrdinalIgnoreCase)
+                            .First();
+                    }
+                }
+
+                var preferredPathSegments = ExtractPathSegments(preferredConfigPath);
+                var suffixMatchedCandidate = candidates
+                    .Select(candidate => new
+                    {
+                        Candidate = candidate,
+                        SuffixSegmentCount = GetCommonSuffixSegmentCount(preferredPathSegments, ExtractPathSegments(candidate))
+                    })
+                    .Where(item => item.SuffixSegmentCount > 0)
+                    .OrderByDescending(item => item.SuffixSegmentCount)
+                    .ThenBy(item => item.Candidate, StringComparer.OrdinalIgnoreCase)
+                    .Select(item => item.Candidate)
+                    .FirstOrDefault();
+
+                if (!string.IsNullOrWhiteSpace(suffixMatchedCandidate))
+                {
+                    return suffixMatchedCandidate;
+                }
+            }
+
+            return candidates[0];
+        }
+
+        private static string[] ExtractPathSegments(string path)
+        {
+            return path
+                .Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries);
+        }
+
+        private static int GetCommonSuffixSegmentCount(IReadOnlyList<string> leftSegments, IReadOnlyList<string> rightSegments)
+        {
+            var leftIndex = leftSegments.Count - 1;
+            var rightIndex = rightSegments.Count - 1;
+            var matchedCount = 0;
+
+            while (leftIndex >= 0 && rightIndex >= 0)
+            {
+                if (!leftSegments[leftIndex].Equals(rightSegments[rightIndex], StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                matchedCount++;
+                leftIndex--;
+                rightIndex--;
+            }
+
+            return matchedCount;
+        }
+
+        private static List<ConfigCandidateOption> BuildConfigCandidateOptions(IReadOnlyList<string> candidates)
+        {
+            var options = new List<ConfigCandidateOption>();
+            var candidatesByName = candidates
+                .Where(candidate => !string.IsNullOrWhiteSpace(candidate))
+                .GroupBy(candidate => Path.GetFileName(candidate), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var candidate in candidates)
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                {
+                    continue;
+                }
+
+                var fileName = Path.GetFileName(candidate);
+                var sameNameCandidates = candidatesByName[fileName];
+                var displayPath = sameNameCandidates.Count == 1
+                    ? fileName
+                    : BuildCompactPathLabel(candidate);
+
+                var duplicateIndex = 2;
+                while (options.Any(option => option.DisplayPath.Equals(displayPath, StringComparison.OrdinalIgnoreCase)))
+                {
+                    displayPath = $"{BuildCompactPathLabel(candidate)} ({duplicateIndex})";
+                    duplicateIndex++;
+                }
+
+                options.Add(new ConfigCandidateOption(displayPath, candidate));
+            }
+
+            return options;
+        }
+
+        private static string BuildCompactPathLabel(string fullPath)
+        {
+            var segments = ExtractPathSegments(fullPath);
+            if (segments.Length >= 2)
+            {
+                return $"{segments[^2]}/{segments[^1]}";
+            }
+
+            return Path.GetFileName(fullPath);
+        }
+
+        private void SetSelectedConfigSource(ModConfigSaveTarget source)
+        {
+            if (_selectedConfigSource == source)
+            {
+                return;
+            }
+
+            _selectedConfigSource = source;
+            OnPropertyChanged(nameof(CurrentConfigSourceText));
+            OnPropertyChanged(nameof(ToggleConfigSourceButtonText));
+            OnPropertyChanged(nameof(ConfigBufferStateText));
+            OnPropertyChanged(nameof(RawConfigEditorStatusText));
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private static ModConfigSaveTarget GetAlternateConfigSource(ModConfigSaveTarget source)
+        {
+            return source == ModConfigSaveTarget.ModDirectory
+                ? ModConfigSaveTarget.WwmiDirectory
+                : ModConfigSaveTarget.ModDirectory;
+        }
+
+        private static ModConfigSaveTarget GetSyncSourceSaveTarget(ModConfigSyncDirection direction)
+        {
+            return direction == ModConfigSyncDirection.ModToWwmi
+                ? ModConfigSaveTarget.ModDirectory
+                : ModConfigSaveTarget.WwmiDirectory;
+        }
+
+        public sealed record ConfigCandidateOption(string DisplayPath, string FullPath);
 
         private string GetSavePreviewPath(ModConfigSaveTarget saveTarget)
         {

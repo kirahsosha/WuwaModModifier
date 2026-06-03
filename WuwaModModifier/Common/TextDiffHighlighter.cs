@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace WuwaModModifier.Common
 {
@@ -14,6 +15,7 @@ namespace WuwaModModifier.Common
         public string Text { get; init; } = string.Empty;
         public IReadOnlyList<TextDiffHighlightSpan> Spans { get; init; } = Array.Empty<TextDiffHighlightSpan>();
         public bool HasDifference { get; init; }
+        public bool IsPlaceholder { get; init; }
     }
 
     public sealed class TextDiffNavigationState
@@ -30,6 +32,8 @@ namespace WuwaModModifier.Common
         public IReadOnlyList<TextDiffHighlightLine> Lines { get; init; } = Array.Empty<TextDiffHighlightLine>();
         public IReadOnlyList<int> DifferenceLineIndices { get; init; } = Array.Empty<int>();
         public IReadOnlyDictionary<int, int> DifferenceOrdinalByLineIndex { get; init; } = new Dictionary<int, int>();
+        public IReadOnlyList<int?> ActualLineIndexByVisualLineIndex { get; init; } = Array.Empty<int?>();
+        public IReadOnlyList<int> InsertionLineIndexByVisualLineIndex { get; init; } = Array.Empty<int>();
     }
 
     public sealed class TextDiffSynchronizedState
@@ -131,85 +135,98 @@ namespace WuwaModModifier.Common
             var oldEditorLines = new List<TextDiffHighlightLine>();
             var oldDifferenceLineIndices = new List<int>();
             var oldDifferenceOrdinalByLineIndex = new Dictionary<int, int>();
+            var oldActualLineIndices = new List<int?>();
+            var oldInsertionLineIndices = new List<int>();
             var newEditorLines = new List<TextDiffHighlightLine>();
             var newDifferenceLineIndices = new List<int>();
             var newDifferenceOrdinalByLineIndex = new Dictionary<int, int>();
+            var newActualLineIndices = new List<int?>();
+            var newInsertionLineIndices = new List<int>();
             var resultEditorLines = new List<TextDiffHighlightLine>();
             var resultDifferenceLineIndices = new List<int>();
             var resultDifferenceOrdinalByLineIndex = new Dictionary<int, int>();
+            var resultActualLineIndices = new List<int?>();
+            var resultInsertionLineIndices = new List<int>();
 
             var oldLineIndex = 0;
             var newLineIndex = 0;
             var resultLineIndex = 0;
             var differenceOrdinal = 0;
-            var previousVisibleDifferenceResultLineIndex = -1;
+            var previousVisibleDifferenceLineIndex = -1;
 
             foreach (var row in rows)
             {
-                var hasNavigableDifference = row.HasDifference && row.ResultLine != null;
+                var visualLineIndex = oldEditorLines.Count;
+                var hasNavigableDifference = row.HasDifference;
 
                 if (hasNavigableDifference)
                 {
-                    var currentResultLineText = row.ResultLine!.Text;
+                    var currentResultLineText = GetRepresentativeLineText(row);
                     if (!ShouldContinueVisibleDifferenceGroup(
-                            previousVisibleDifferenceResultLineIndex,
-                            resultLineIndex,
+                            previousVisibleDifferenceLineIndex,
+                            visualLineIndex,
                             currentResultLineText))
                     {
                         differenceOrdinal++;
                     }
 
-                    previousVisibleDifferenceResultLineIndex = resultLineIndex;
+                    previousVisibleDifferenceLineIndex = visualLineIndex;
+                }
+
+                oldEditorLines.Add(BuildSynchronizedLine(
+                    row.OldLine,
+                    row.NewLine?.Text,
+                    row.ResultLine?.Text,
+                    row.HasDifference));
+                oldActualLineIndices.Add(row.OldLine?.LineIndex);
+                oldInsertionLineIndices.Add(oldLineIndex);
+
+                if (hasNavigableDifference)
+                {
+                    oldDifferenceLineIndices.Add(visualLineIndex);
+                    oldDifferenceOrdinalByLineIndex[visualLineIndex] = differenceOrdinal;
                 }
 
                 if (row.OldLine != null)
                 {
-                    oldEditorLines.Add(BuildSynchronizedLine(
-                        row.OldLine.Text,
-                        row.NewLine?.Text,
-                        row.ResultLine?.Text,
-                        row.HasDifference));
-
-                    if (hasNavigableDifference)
-                    {
-                        oldDifferenceLineIndices.Add(oldLineIndex);
-                        oldDifferenceOrdinalByLineIndex[oldLineIndex] = differenceOrdinal;
-                    }
-
                     oldLineIndex++;
+                }
+
+                newEditorLines.Add(BuildSynchronizedLine(
+                    row.NewLine,
+                    row.OldLine?.Text,
+                    row.ResultLine?.Text,
+                    row.HasDifference));
+                newActualLineIndices.Add(row.NewLine?.LineIndex);
+                newInsertionLineIndices.Add(newLineIndex);
+
+                if (hasNavigableDifference)
+                {
+                    newDifferenceLineIndices.Add(visualLineIndex);
+                    newDifferenceOrdinalByLineIndex[visualLineIndex] = differenceOrdinal;
                 }
 
                 if (row.NewLine != null)
                 {
-                    newEditorLines.Add(BuildSynchronizedLine(
-                        row.NewLine.Text,
-                        row.OldLine?.Text,
-                        row.ResultLine?.Text,
-                        row.HasDifference));
-
-                    if (hasNavigableDifference)
-                    {
-                        newDifferenceLineIndices.Add(newLineIndex);
-                        newDifferenceOrdinalByLineIndex[newLineIndex] = differenceOrdinal;
-                    }
-
                     newLineIndex++;
+                }
+
+                resultEditorLines.Add(BuildSynchronizedLine(
+                    row.ResultLine,
+                    row.NewLine?.Text,
+                    row.OldLine?.Text,
+                    row.HasDifference));
+                resultActualLineIndices.Add(row.ResultLine?.LineIndex);
+                resultInsertionLineIndices.Add(resultLineIndex);
+
+                if (hasNavigableDifference)
+                {
+                    resultDifferenceLineIndices.Add(visualLineIndex);
+                    resultDifferenceOrdinalByLineIndex[visualLineIndex] = differenceOrdinal;
                 }
 
                 if (row.ResultLine != null)
                 {
-                    resultEditorLines.Add(BuildSynchronizedLine(
-                        row.ResultLine.Text,
-                        row.NewLine?.Text,
-                        row.OldLine?.Text,
-                        row.HasDifference));
-
-                    if (hasNavigableDifference)
-                    {
-                        resultDifferenceLineIndices.Add(resultLineIndex);
-                        resultDifferenceOrdinalByLineIndex[resultLineIndex] = differenceOrdinal;
-                    }
-
                     resultLineIndex++;
                 }
             }
@@ -221,19 +238,25 @@ namespace WuwaModModifier.Common
                 {
                     Lines = oldEditorLines,
                     DifferenceLineIndices = oldDifferenceLineIndices,
-                    DifferenceOrdinalByLineIndex = oldDifferenceOrdinalByLineIndex
+                    DifferenceOrdinalByLineIndex = oldDifferenceOrdinalByLineIndex,
+                    ActualLineIndexByVisualLineIndex = oldActualLineIndices,
+                    InsertionLineIndexByVisualLineIndex = oldInsertionLineIndices
                 },
                 NewEditor = new TextDiffSynchronizedEditorState
                 {
                     Lines = newEditorLines,
                     DifferenceLineIndices = newDifferenceLineIndices,
-                    DifferenceOrdinalByLineIndex = newDifferenceOrdinalByLineIndex
+                    DifferenceOrdinalByLineIndex = newDifferenceOrdinalByLineIndex,
+                    ActualLineIndexByVisualLineIndex = newActualLineIndices,
+                    InsertionLineIndexByVisualLineIndex = newInsertionLineIndices
                 },
                 ResultEditor = new TextDiffSynchronizedEditorState
                 {
                     Lines = resultEditorLines,
                     DifferenceLineIndices = resultDifferenceLineIndices,
-                    DifferenceOrdinalByLineIndex = resultDifferenceOrdinalByLineIndex
+                    DifferenceOrdinalByLineIndex = resultDifferenceOrdinalByLineIndex,
+                    ActualLineIndexByVisualLineIndex = resultActualLineIndices,
+                    InsertionLineIndexByVisualLineIndex = resultInsertionLineIndices
                 }
             };
         }
@@ -469,11 +492,17 @@ namespace WuwaModModifier.Common
         }
 
         private static TextDiffHighlightLine BuildSynchronizedLine(
-            string currentText,
+            IndexedLine? currentLine,
             string? firstOtherText,
             string? secondOtherText,
             bool hasDifference)
         {
+            if (currentLine == null)
+            {
+                return BuildPlaceholderLine(hasDifference);
+            }
+
+            var currentText = currentLine.Text;
             if (!hasDifference)
             {
                 return new TextDiffHighlightLine
@@ -522,6 +551,22 @@ namespace WuwaModModifier.Common
                 Spans = line.Spans,
                 HasDifference = true
             };
+        }
+
+        private static TextDiffHighlightLine BuildPlaceholderLine(bool hasDifference)
+        {
+            return new TextDiffHighlightLine
+            {
+                Text = string.Empty,
+                Spans = Array.Empty<TextDiffHighlightSpan>(),
+                HasDifference = hasDifference,
+                IsPlaceholder = true
+            };
+        }
+
+        private static string GetRepresentativeLineText(SynchronizedDiffRow row)
+        {
+            return row.ResultLine?.Text ?? row.NewLine?.Text ?? row.OldLine?.Text ?? string.Empty;
         }
 
         private static string? SelectComparisonText(string currentText, string? firstOtherText, string? secondOtherText)
@@ -714,12 +759,14 @@ namespace WuwaModModifier.Common
 
         private static List<AlignedLinePair> BuildAlignedLinePairs(IReadOnlyList<string> sourceLines, IReadOnlyList<string> referenceLines)
         {
-            var lcsLengths = new int[sourceLines.Count + 1, referenceLines.Count + 1];
-            for (var sourceIndex = sourceLines.Count - 1; sourceIndex >= 0; sourceIndex--)
+            var sourceEntries = BuildAlignmentEntries(sourceLines);
+            var referenceEntries = BuildAlignmentEntries(referenceLines);
+            var lcsLengths = new int[sourceEntries.Count + 1, referenceEntries.Count + 1];
+            for (var sourceIndex = sourceEntries.Count - 1; sourceIndex >= 0; sourceIndex--)
             {
-                for (var referenceIndex = referenceLines.Count - 1; referenceIndex >= 0; referenceIndex--)
+                for (var referenceIndex = referenceEntries.Count - 1; referenceIndex >= 0; referenceIndex--)
                 {
-                    lcsLengths[sourceIndex, referenceIndex] = string.Equals(sourceLines[sourceIndex], referenceLines[referenceIndex], StringComparison.Ordinal)
+                    lcsLengths[sourceIndex, referenceIndex] = AreLinesEquivalentForAlignment(sourceEntries[sourceIndex], referenceEntries[referenceIndex])
                         ? lcsLengths[sourceIndex + 1, referenceIndex + 1] + 1
                         : Math.Max(lcsLengths[sourceIndex + 1, referenceIndex], lcsLengths[sourceIndex, referenceIndex + 1]);
                 }
@@ -729,54 +776,54 @@ namespace WuwaModModifier.Common
             var sourcePointer = 0;
             var referencePointer = 0;
 
-            while (sourcePointer < sourceLines.Count || referencePointer < referenceLines.Count)
+            while (sourcePointer < sourceEntries.Count || referencePointer < referenceEntries.Count)
             {
-                if (sourcePointer < sourceLines.Count &&
-                    referencePointer < referenceLines.Count &&
-                    string.Equals(sourceLines[sourcePointer], referenceLines[referencePointer], StringComparison.Ordinal))
+                if (sourcePointer < sourceEntries.Count &&
+                    referencePointer < referenceEntries.Count &&
+                    AreLinesEquivalentForAlignment(sourceEntries[sourcePointer], referenceEntries[referencePointer]))
                 {
-                    result.Add(new AlignedLinePair(sourceLines[sourcePointer], referenceLines[referencePointer]));
+                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, referenceEntries[referencePointer].Text));
                     sourcePointer++;
                     referencePointer++;
                     continue;
                 }
 
-                if (sourcePointer < sourceLines.Count &&
-                    referencePointer < referenceLines.Count &&
+                if (sourcePointer < sourceEntries.Count &&
+                    referencePointer < referenceEntries.Count &&
                     lcsLengths[sourcePointer + 1, referencePointer] == lcsLengths[sourcePointer, referencePointer + 1])
                 {
-                    var remainingSourceCount = sourceLines.Count - sourcePointer;
-                    var remainingReferenceCount = referenceLines.Count - referencePointer;
+                    var remainingSourceCount = sourceEntries.Count - sourcePointer;
+                    var remainingReferenceCount = referenceEntries.Count - referencePointer;
 
                     if (remainingReferenceCount > remainingSourceCount)
                     {
-                        result.Add(new AlignedLinePair(null, referenceLines[referencePointer]));
+                        result.Add(new AlignedLinePair(null, referenceEntries[referencePointer].Text));
                         referencePointer++;
                         continue;
                     }
 
                     if (remainingSourceCount > remainingReferenceCount)
                     {
-                        result.Add(new AlignedLinePair(sourceLines[sourcePointer], null));
+                        result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, null));
                         sourcePointer++;
                         continue;
                     }
 
-                    result.Add(new AlignedLinePair(sourceLines[sourcePointer], referenceLines[referencePointer]));
+                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, referenceEntries[referencePointer].Text));
                     sourcePointer++;
                     referencePointer++;
                     continue;
                 }
 
-                if (referencePointer >= referenceLines.Count ||
-                    (sourcePointer < sourceLines.Count && lcsLengths[sourcePointer + 1, referencePointer] >= lcsLengths[sourcePointer, referencePointer + 1]))
+                if (referencePointer >= referenceEntries.Count ||
+                    (sourcePointer < sourceEntries.Count && lcsLengths[sourcePointer + 1, referencePointer] >= lcsLengths[sourcePointer, referencePointer + 1]))
                 {
-                    result.Add(new AlignedLinePair(sourceLines[sourcePointer], null));
+                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, null));
                     sourcePointer++;
                     continue;
                 }
 
-                result.Add(new AlignedLinePair(null, referenceLines[referencePointer]));
+                result.Add(new AlignedLinePair(null, referenceEntries[referencePointer].Text));
                 referencePointer++;
             }
 
@@ -785,12 +832,14 @@ namespace WuwaModModifier.Common
 
         private static List<AlignedLinePair> BuildAlignedLinePairsForReplacement(IReadOnlyList<string> sourceLines, IReadOnlyList<string> referenceLines)
         {
-            var lcsLengths = new int[sourceLines.Count + 1, referenceLines.Count + 1];
-            for (var sourceIndex = sourceLines.Count - 1; sourceIndex >= 0; sourceIndex--)
+            var sourceEntries = BuildAlignmentEntries(sourceLines);
+            var referenceEntries = BuildAlignmentEntries(referenceLines);
+            var lcsLengths = new int[sourceEntries.Count + 1, referenceEntries.Count + 1];
+            for (var sourceIndex = sourceEntries.Count - 1; sourceIndex >= 0; sourceIndex--)
             {
-                for (var referenceIndex = referenceLines.Count - 1; referenceIndex >= 0; referenceIndex--)
+                for (var referenceIndex = referenceEntries.Count - 1; referenceIndex >= 0; referenceIndex--)
                 {
-                    lcsLengths[sourceIndex, referenceIndex] = string.Equals(sourceLines[sourceIndex], referenceLines[referenceIndex], StringComparison.Ordinal)
+                    lcsLengths[sourceIndex, referenceIndex] = AreLinesEquivalentForAlignment(sourceEntries[sourceIndex], referenceEntries[referenceIndex])
                         ? lcsLengths[sourceIndex + 1, referenceIndex + 1] + 1
                         : Math.Max(lcsLengths[sourceIndex + 1, referenceIndex], lcsLengths[sourceIndex, referenceIndex + 1]);
                 }
@@ -800,57 +849,212 @@ namespace WuwaModModifier.Common
             var sourcePointer = 0;
             var referencePointer = 0;
 
-            while (sourcePointer < sourceLines.Count || referencePointer < referenceLines.Count)
+            while (sourcePointer < sourceEntries.Count || referencePointer < referenceEntries.Count)
             {
-                if (sourcePointer < sourceLines.Count &&
-                    referencePointer < referenceLines.Count &&
-                    string.Equals(sourceLines[sourcePointer], referenceLines[referencePointer], StringComparison.Ordinal))
+                if (sourcePointer < sourceEntries.Count &&
+                    referencePointer < referenceEntries.Count &&
+                    AreLinesEquivalentForAlignment(sourceEntries[sourcePointer], referenceEntries[referencePointer]))
                 {
-                    result.Add(new AlignedLinePair(sourceLines[sourcePointer], referenceLines[referencePointer]));
+                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, referenceEntries[referencePointer].Text));
                     sourcePointer++;
                     referencePointer++;
                     continue;
                 }
 
-                if (sourcePointer < sourceLines.Count &&
-                    referencePointer < referenceLines.Count &&
+                if (sourcePointer < sourceEntries.Count &&
+                    referencePointer < referenceEntries.Count &&
                     lcsLengths[sourcePointer + 1, referencePointer] == lcsLengths[sourcePointer, referencePointer + 1])
                 {
-                    if (referencePointer + 1 < referenceLines.Count &&
-                        string.Equals(sourceLines[sourcePointer], referenceLines[referencePointer + 1], StringComparison.Ordinal))
+                    if (referencePointer + 1 < referenceEntries.Count &&
+                        AreLinesEquivalentForAlignment(sourceEntries[sourcePointer], referenceEntries[referencePointer + 1]))
                     {
-                        result.Add(new AlignedLinePair(null, referenceLines[referencePointer]));
+                        result.Add(new AlignedLinePair(null, referenceEntries[referencePointer].Text));
                         referencePointer++;
                         continue;
                     }
 
-                    if (sourcePointer + 1 < sourceLines.Count &&
-                        string.Equals(sourceLines[sourcePointer + 1], referenceLines[referencePointer], StringComparison.Ordinal))
+                    if (sourcePointer + 1 < sourceEntries.Count &&
+                        AreLinesEquivalentForAlignment(sourceEntries[sourcePointer + 1], referenceEntries[referencePointer]))
                     {
-                        result.Add(new AlignedLinePair(sourceLines[sourcePointer], null));
+                        result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, null));
                         sourcePointer++;
                         continue;
                     }
 
-                    result.Add(new AlignedLinePair(sourceLines[sourcePointer], referenceLines[referencePointer]));
+                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, referenceEntries[referencePointer].Text));
                     sourcePointer++;
                     referencePointer++;
                     continue;
                 }
 
-                if (referencePointer >= referenceLines.Count ||
-                    (sourcePointer < sourceLines.Count && lcsLengths[sourcePointer + 1, referencePointer] >= lcsLengths[sourcePointer, referencePointer + 1]))
+                if (referencePointer >= referenceEntries.Count ||
+                    (sourcePointer < sourceEntries.Count && lcsLengths[sourcePointer + 1, referencePointer] >= lcsLengths[sourcePointer, referencePointer + 1]))
                 {
-                    result.Add(new AlignedLinePair(sourceLines[sourcePointer], null));
+                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, null));
                     sourcePointer++;
                     continue;
                 }
 
-                result.Add(new AlignedLinePair(null, referenceLines[referencePointer]));
+                result.Add(new AlignedLinePair(null, referenceEntries[referencePointer].Text));
                 referencePointer++;
             }
 
             return result;
+        }
+
+        private static bool AreLinesEquivalentForAlignment(AlignmentLine leftLine, AlignmentLine rightLine)
+        {
+            if (string.Equals(leftLine.Text, rightLine.Text, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return !string.IsNullOrWhiteSpace(leftLine.AlignmentKey) &&
+                !string.IsNullOrWhiteSpace(rightLine.AlignmentKey) &&
+                string.Equals(leftLine.AlignmentKey, rightLine.AlignmentKey, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static List<AlignmentLine> BuildAlignmentEntries(IReadOnlyList<string> lines)
+        {
+            var result = new List<AlignmentLine>(lines.Count);
+            string? pendingDrawComponentId = null;
+
+            foreach (var line in lines)
+            {
+                var trimmedLine = line.Trim();
+                string? alignmentKey = null;
+
+                if (TryGetGlobalAlignmentKey(trimmedLine, out var globalAlignmentKey))
+                {
+                    alignmentKey = globalAlignmentKey;
+                    pendingDrawComponentId = null;
+                }
+                else if (TryGetDrawComponentId(trimmedLine, out var drawComponentId))
+                {
+                    alignmentKey = $"draw-comment:{drawComponentId}";
+                    pendingDrawComponentId = drawComponentId;
+                }
+                else if (TryGetDrawCommandName(trimmedLine, out var drawCommandName))
+                {
+                    alignmentKey = pendingDrawComponentId == null
+                        ? $"{drawCommandName}"
+                        : $"{drawCommandName}:{pendingDrawComponentId}";
+                }
+                else if (!string.IsNullOrWhiteSpace(trimmedLine))
+                {
+                    pendingDrawComponentId = null;
+                }
+
+                result.Add(new AlignmentLine(line, alignmentKey));
+            }
+
+            return result;
+        }
+
+        private static bool TryGetGlobalAlignmentKey(string trimmedLine, out string key)
+        {
+            key = string.Empty;
+            if (string.IsNullOrWhiteSpace(trimmedLine))
+            {
+                return false;
+            }
+
+            if (!trimmedLine.StartsWith("global ", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var remainder = trimmedLine.Substring("global ".Length).TrimStart();
+            if (remainder.StartsWith("persist ", StringComparison.OrdinalIgnoreCase))
+            {
+                remainder = remainder.Substring("persist ".Length).TrimStart();
+            }
+
+            var equalsIndex = remainder.IndexOf('=');
+            if (equalsIndex <= 0)
+            {
+                return false;
+            }
+
+            var variableToken = remainder[..equalsIndex]
+                .Trim()
+                .Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries)
+                .FirstOrDefault();
+            if (string.IsNullOrWhiteSpace(variableToken) || !variableToken.StartsWith("$", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            key = $"global:{variableToken}";
+            return true;
+        }
+
+        private static bool TryGetDrawComponentId(string trimmedLine, out string componentId)
+        {
+            componentId = string.Empty;
+            const string prefix = "; Draw Component ";
+            if (!trimmedLine.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var remainder = trimmedLine.Substring(prefix.Length).TrimStart();
+            if (string.IsNullOrWhiteSpace(remainder))
+            {
+                return false;
+            }
+
+            var length = 0;
+            while (length < remainder.Length)
+            {
+                var character = remainder[length];
+                if (!IsAsciiAlignmentTokenCharacter(character))
+                {
+                    break;
+                }
+
+                length++;
+            }
+
+            if (length == 0)
+            {
+                return false;
+            }
+
+            componentId = remainder[..length];
+            return true;
+        }
+
+        private static bool IsAsciiAlignmentTokenCharacter(char character)
+        {
+            return (character >= '0' && character <= '9') ||
+                (character >= 'A' && character <= 'Z') ||
+                (character >= 'a' && character <= 'z') ||
+                character == '.' ||
+                character == '_' ||
+                character == '-';
+        }
+
+        private static bool TryGetDrawCommandName(string trimmedLine, out string drawCommandName)
+        {
+            drawCommandName = string.Empty;
+            const string drawIndexedPrefix = "drawindexed";
+            if (!trimmedLine.StartsWith(drawIndexedPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (trimmedLine.Length > drawIndexedPrefix.Length)
+            {
+                var nextCharacter = trimmedLine[drawIndexedPrefix.Length];
+                if (!(char.IsWhiteSpace(nextCharacter) || nextCharacter == '='))
+                {
+                    return false;
+                }
+            }
+
+            drawCommandName = drawIndexedPrefix;
+            return true;
         }
 
         private static int GetSharedPrefixLength(string sourceLine, string referenceLine)
@@ -910,6 +1114,7 @@ namespace WuwaModModifier.Common
             public Dictionary<int, List<IndexedLine>> InsertionsBeforeReferenceIndex { get; }
         }
 
+        private sealed record AlignmentLine(string Text, string? AlignmentKey);
         private sealed record IndexedLine(int LineIndex, string Text);
         private sealed record AlignedLinePair(string? SourceLine, string? ReferenceLine);
         private sealed record SynchronizedDiffRow(

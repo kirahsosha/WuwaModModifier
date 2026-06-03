@@ -416,13 +416,22 @@ namespace WuwaModModifier.Common
                 throw new InvalidOperationException("未找到模型显示项的控制表达式。");
             }
 
-            if (!isVisible && CanHideVisibilityDirectly(visibilityItem))
+            if (!isVisible && CanToggleVisibilityDirectly(visibilityItem))
             {
                 WrapDrawTargetWithConstantCondition(drawTarget, false);
                 return CreateUpdatedBuffer(
                     buffer,
                     document,
                     $"切换 {componentSectionName} / {drawLabel} 为隐藏");
+            }
+
+            if (isVisible && IsVisibilityDirectlyHidden(visibilityItem))
+            {
+                UnwrapDrawTargetFromConstantCondition(drawTarget, false);
+                return CreateUpdatedBuffer(
+                    buffer,
+                    document,
+                    $"切换 {componentSectionName} / {drawLabel} 为显示");
             }
 
             if (visibilityItem.ControllingParameters.Count != 1)
@@ -1290,12 +1299,106 @@ namespace WuwaModModifier.Common
                 CreateControlLineStatement($"{outerIndent}endif"));
         }
 
-        private static bool CanHideVisibilityDirectly(ModVisibilityItem visibilityItem)
+        private static void UnwrapDrawTargetFromConstantCondition(DrawTargetInfo drawTarget, bool isVisible)
+        {
+            var wrapper = FindConstantConditionWrapper(drawTarget, isVisible);
+            if (wrapper == null)
+            {
+                throw new InvalidOperationException("未找到可恢复的常量模型显示控制块。");
+            }
+
+            var section = wrapper.Section;
+            var startIndex = wrapper.StatementIndex;
+            var endIndex = FindMatchingEndIfIndex(section, startIndex);
+            var outerIndent = GetIndentation(section.Statements[startIndex].RawText);
+            var innerIndent = outerIndent + "    ";
+
+            for (var index = startIndex + 1; index < endIndex; index++)
+            {
+                var statement = section.Statements[index];
+                if (statement.Kind == ModConfigStatementKind.BlankLine)
+                {
+                    continue;
+                }
+
+                if (statement.RawText.StartsWith(innerIndent, StringComparison.Ordinal))
+                {
+                    statement.RawText = outerIndent + statement.RawText.Substring(innerIndent.Length);
+                }
+            }
+
+            section.Statements.RemoveAt(endIndex);
+            section.Statements.RemoveAt(startIndex);
+        }
+
+        private static bool CanToggleVisibilityDirectly(ModVisibilityItem visibilityItem)
         {
             return visibilityItem.DrawCallCount > 0 &&
                 visibilityItem.ControllingParameters.Count == 0 &&
                 visibilityItem.ControllingKeySections.Count == 0 &&
                 visibilityItem.ControllingKeyBindings.Count == 0;
+        }
+
+        private static bool IsVisibilityDirectlyHidden(ModVisibilityItem visibilityItem)
+        {
+            return CanToggleVisibilityDirectly(visibilityItem) &&
+                visibilityItem.ControlExpressions.Any(expression => IsConstantConditionExpression(expression, false));
+        }
+
+        private static ControlLineTarget? FindConstantConditionWrapper(DrawTargetInfo drawTarget, bool isVisible)
+        {
+            var count = Math.Min(drawTarget.ControlExpressions.Count, drawTarget.ControlLineTargets.Count);
+            for (var index = count - 1; index >= 0; index--)
+            {
+                var controlLineTarget = drawTarget.ControlLineTargets[index];
+                if (!ReferenceEquals(controlLineTarget.Section, drawTarget.Section))
+                {
+                    continue;
+                }
+
+                if (IsConstantConditionExpression(drawTarget.ControlExpressions[index], isVisible))
+                {
+                    return controlLineTarget;
+                }
+            }
+
+            return null;
+        }
+
+        private static int FindMatchingEndIfIndex(ModConfigSection section, int startIndex)
+        {
+            var depth = 0;
+            for (var index = startIndex; index < section.Statements.Count; index++)
+            {
+                var statement = section.Statements[index];
+                if (statement.Kind != ModConfigStatementKind.ControlLine)
+                {
+                    continue;
+                }
+
+                var trimmed = statement.RawText.Trim();
+                if (trimmed.StartsWith("if ", StringComparison.OrdinalIgnoreCase))
+                {
+                    depth++;
+                    continue;
+                }
+
+                if (trimmed.Equals("endif", StringComparison.OrdinalIgnoreCase))
+                {
+                    depth--;
+                    if (depth == 0)
+                    {
+                        return index;
+                    }
+                }
+            }
+
+            throw new InvalidOperationException("未找到模型显示控制块对应的 endif。");
+        }
+
+        private static bool IsConstantConditionExpression(string expression, bool isVisible)
+        {
+            return expression.Trim().Equals(isVisible ? "1" : "0", StringComparison.OrdinalIgnoreCase);
         }
 
         private static void ReplaceVisibilityControlVariable(
@@ -1553,7 +1656,7 @@ namespace WuwaModModifier.Common
                                         .Concat(controlLineTargetStack.Reverse())
                                         .ToList(),
                                     ControlExpressions = inheritedExpressions
-                                        .Concat(controlStack)
+                                        .Concat(controlStack.Reverse())
                                         .ToList()
                                 };
                             }
@@ -1573,7 +1676,7 @@ namespace WuwaModModifier.Common
                                 sectionLookup,
                                 activePathSectionNames,
                                 inheritedExpressions
-                                    .Concat(controlStack)
+                                    .Concat(controlStack.Reverse())
                                     .ToList(),
                                 inheritedControlLineTargets
                                     .Concat(controlLineTargetStack.Reverse())

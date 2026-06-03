@@ -32,30 +32,38 @@ namespace WuwaModModifier.Common
 
             var folderName = ModPathHelper.GetCharacterNameFromFolder(modDirectory);
             var (_, modName) = ModPathHelper.ParseModFolderName(folderName);
-            var rootCandidates = GetIniFilesSafe(modDirectory);
-            if (rootCandidates.Count > 0)
-            {
-                return OrderCandidates(rootCandidates, folderName, modName);
-            }
+            var allCandidates = new List<string>();
+            allCandidates.AddRange(GetIniFilesSafe(modDirectory));
 
             for (var depth = 1; depth <= NestedSearchMaxDepth; depth++)
             {
-                var nestedCandidates = GetIniFilesAtDepth(modDirectory, depth);
-                if (nestedCandidates.Count > 0)
-                {
-                    return OrderCandidates(nestedCandidates, folderName, modName);
-                }
+                allCandidates.AddRange(GetIniFilesAtDepth(modDirectory, depth));
             }
 
-            return Array.Empty<string>();
+            if (allCandidates.Count == 0)
+            {
+                return Array.Empty<string>();
+            }
+
+            return OrderCandidates(allCandidates.Distinct(StringComparer.OrdinalIgnoreCase), modDirectory, folderName, modName);
         }
 
-        private IReadOnlyList<string> OrderCandidates(IEnumerable<string> iniFiles, string folderName, string modName)
+        private IReadOnlyList<string> OrderCandidates(IEnumerable<string> iniFiles, string rootDirectory, string folderName, string modName)
         {
             return iniFiles
                 .OrderByDescending(path => ScoreCandidate(path, folderName, modName))
+                .ThenBy(path => GetRelativePathDepth(rootDirectory, path))
                 .ThenBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+                .ThenBy(path => Path.GetRelativePath(rootDirectory, path), StringComparer.OrdinalIgnoreCase)
                 .ToArray();
+        }
+
+        private static int GetRelativePathDepth(string rootDirectory, string filePath)
+        {
+            var relativePath = Path.GetRelativePath(rootDirectory, filePath);
+            return relativePath
+                .Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries)
+                .Length;
         }
 
         private List<string> GetIniFilesAtDepth(string rootDirectory, int targetDepth)

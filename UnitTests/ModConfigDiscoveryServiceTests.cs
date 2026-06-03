@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using WuwaModModifier.Common;
@@ -107,7 +108,7 @@ namespace UnitTests
         }
 
         [Fact]
-        public void GetConfigCandidates_ShouldPreferRootCandidates_BeforeNestedDirectories()
+        public void GetConfigCandidates_ShouldIncludeRootAndNestedCandidates_WhenBothExist()
         {
             var modDirectory = CreateTempDirectory("[103]PreferRoot");
 
@@ -117,7 +118,7 @@ namespace UnitTests
                 Directory.CreateDirectory(nestedDirectory);
 
                 File.WriteAllText(
-                    Path.Combine(modDirectory, "root.ini"),
+                    Path.Combine(modDirectory, "mod.ini"),
                     "[Constants]\n" +
                     "global $key_1 = 1\n\n" +
                     "[Key key_1]\n" +
@@ -135,8 +136,90 @@ namespace UnitTests
 
                 var candidates = service.GetConfigCandidates(modDirectory);
 
-                Assert.Single(candidates);
-                Assert.Equal(Path.Combine(modDirectory, "root.ini"), candidates.Single());
+                Assert.Equal(2, candidates.Count);
+                Assert.Equal(Path.Combine(modDirectory, "mod.ini"), candidates[0]);
+                Assert.Equal(Path.Combine(nestedDirectory, "mod.ini"), candidates[1]);
+            }
+            finally
+            {
+                Directory.Delete(modDirectory, true);
+            }
+        }
+
+        [Fact]
+        public void GetConfigCandidates_ShouldReturnAllRootIniFiles_WhenMultipleMatchesExist()
+        {
+            var modDirectory = CreateTempDirectory("[104]MultiConfig");
+
+            try
+            {
+                File.WriteAllText(
+                    Path.Combine(modDirectory, "mod.ini"),
+                    "[Constants]\n" +
+                    "global $key_1 = 1\n");
+                File.WriteAllText(
+                    Path.Combine(modDirectory, "form_a.ini"),
+                    "[Constants]\n" +
+                    "global $key_2 = 2\n");
+                File.WriteAllText(
+                    Path.Combine(modDirectory, "form_b.ini"),
+                    "[Constants]\n" +
+                    "global $key_3 = 3\n");
+
+                var service = new ModConfigDiscoveryService(new FileSystemService());
+
+                var candidates = service.GetConfigCandidates(modDirectory);
+
+                Assert.Equal(3, candidates.Count);
+                Assert.Contains(Path.Combine(modDirectory, "mod.ini"), candidates);
+                Assert.Contains(Path.Combine(modDirectory, "form_a.ini"), candidates);
+                Assert.Contains(Path.Combine(modDirectory, "form_b.ini"), candidates);
+            }
+            finally
+            {
+                Directory.Delete(modDirectory, true);
+            }
+        }
+
+        [Fact]
+        public void GetConfigCandidates_ShouldDiscoverDeniaLikeLayeredModIniStructure()
+        {
+            var modDirectory = CreateTempDirectory("[678974] Denia Lace lingerie set & Topless monsoon");
+
+            try
+            {
+                var expectedPaths = new List<string>
+                {
+                    Path.Combine(modDirectory, "mod.ini"),
+                    Path.Combine(modDirectory, "1", "mod.ini"),
+                    Path.Combine(modDirectory, "2", "mod.ini"),
+                    Path.Combine(modDirectory, "3", "mod.ini"),
+                    Path.Combine(modDirectory, "4", "mod.ini")
+                };
+
+                foreach (var expectedPath in expectedPaths)
+                {
+                    var parentDirectory = Path.GetDirectoryName(expectedPath)!;
+                    Directory.CreateDirectory(parentDirectory);
+                    File.WriteAllText(
+                        expectedPath,
+                        "[Constants]\n" +
+                        "global $layer = 1\n\n" +
+                        "[Key key_1]\n" +
+                        "key = NO_CTRL NO_ALT NO_SHIFT NUMPAD1\n" +
+                        "$layer = 0,1\n");
+                }
+
+                var service = new ModConfigDiscoveryService(new FileSystemService());
+
+                var candidates = service.GetConfigCandidates(modDirectory);
+
+                Assert.Equal(5, candidates.Count);
+                Assert.Equal(expectedPaths[0], candidates[0]);
+                foreach (var expectedPath in expectedPaths)
+                {
+                    Assert.Contains(expectedPath, candidates);
+                }
             }
             finally
             {
