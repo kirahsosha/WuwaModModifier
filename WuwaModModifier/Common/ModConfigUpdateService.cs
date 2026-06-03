@@ -410,6 +410,20 @@ namespace WuwaModModifier.Common
             var document = ParseBuffer(buffer);
             var analysis = _analysisService.Analyze(document);
             var visibilityItem = FindVisibilityItem(analysis, componentSectionName, drawLabel);
+            var drawTarget = FindDrawTargetInfo(document, componentSectionName, drawLabel);
+            if (drawTarget == null)
+            {
+                throw new InvalidOperationException("未找到模型显示项的控制表达式。");
+            }
+
+            if (!isVisible && CanHideVisibilityDirectly(visibilityItem))
+            {
+                WrapDrawTargetWithConstantCondition(drawTarget, false);
+                return CreateUpdatedBuffer(
+                    buffer,
+                    document,
+                    $"切换 {componentSectionName} / {drawLabel} 为隐藏");
+            }
 
             if (visibilityItem.ControllingParameters.Count != 1)
             {
@@ -429,12 +443,6 @@ namespace WuwaModModifier.Common
             if (availableValues.Count < 2)
             {
                 throw new InvalidOperationException($"参数 {variableName} 的值域不足以安全切换显示状态。");
-            }
-
-            var drawTarget = FindDrawTargetInfo(document, componentSectionName, drawLabel);
-            if (drawTarget == null)
-            {
-                throw new InvalidOperationException("未找到模型显示项的控制表达式。");
             }
 
             var controlExpressions = drawTarget.ControlExpressions
@@ -1248,6 +1256,16 @@ namespace WuwaModModifier.Common
 
         private static void WrapDrawTargetWithVisibilityCondition(DrawTargetInfo drawTarget, string variableName)
         {
+            WrapDrawTargetWithCondition(drawTarget, $"{variableName} == 1");
+        }
+
+        private static void WrapDrawTargetWithConstantCondition(DrawTargetInfo drawTarget, bool isVisible)
+        {
+            WrapDrawTargetWithCondition(drawTarget, isVisible ? "1" : "0");
+        }
+
+        private static void WrapDrawTargetWithCondition(DrawTargetInfo drawTarget, string conditionExpression)
+        {
             var section = drawTarget.Section;
             var drawStatement = section.Statements[drawTarget.DrawStatementIndex];
             var outerIndent = GetIndentation(drawStatement.RawText);
@@ -1266,10 +1284,18 @@ namespace WuwaModModifier.Common
 
             section.Statements.Insert(
                 drawTarget.BlockStartIndex,
-                CreateControlLineStatement($"{outerIndent}if {variableName} == 1"));
+                CreateControlLineStatement($"{outerIndent}if {conditionExpression}"));
             section.Statements.Insert(
                 drawTarget.DrawStatementIndex + 2,
                 CreateControlLineStatement($"{outerIndent}endif"));
+        }
+
+        private static bool CanHideVisibilityDirectly(ModVisibilityItem visibilityItem)
+        {
+            return visibilityItem.DrawCallCount > 0 &&
+                visibilityItem.ControllingParameters.Count == 0 &&
+                visibilityItem.ControllingKeySections.Count == 0 &&
+                visibilityItem.ControllingKeyBindings.Count == 0;
         }
 
         private static void ReplaceVisibilityControlVariable(

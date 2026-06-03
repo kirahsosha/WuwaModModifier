@@ -580,7 +580,13 @@ namespace WuwaModModifier.ViewModels
         public bool VisibilityTargetIsVisible
         {
             get => _visibilityTargetIsVisible;
-            set => SetProperty(ref _visibilityTargetIsVisible, value);
+            set
+            {
+                if (SetProperty(ref _visibilityTargetIsVisible, value))
+                {
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
         }
 
         public bool CanBindSelectedVisibilityItem => SelectedVisibilityItem?.CanBindSafely == true;
@@ -1808,7 +1814,8 @@ namespace WuwaModModifier.ViewModels
             return _selectedConfigBuffer != null &&
                 !IsRawConfigDirty &&
                 SelectedVisibilityItem != null &&
-                SelectedVisibilityItem.CanToggleSafely;
+                (SelectedVisibilityItem.CanToggleSafely ||
+                    (!VisibilityTargetIsVisible && SelectedVisibilityItem.CanBindSafely));
         }
 
         private void ExecuteApplyVisibilityBinding()

@@ -107,8 +107,32 @@ namespace WuwaModModifier.Common
 
             var oldBuffer = _configUpdateService.LoadBuffer(job.OldCandidate.ConfigPath);
             var newBuffer = _configUpdateService.LoadBuffer(job.NewCandidate.ConfigPath);
+            return BuildComparison(job, oldBuffer, newBuffer);
+        }
+
+        public VersionSyncComparisonResult BuildComparison(VersionSyncPairingJob job, ModConfigEditBuffer newBuffer)
+        {
+            if (job == null)
+            {
+                throw new ArgumentNullException(nameof(job));
+            }
+
+            if (newBuffer == null)
+            {
+                throw new ArgumentNullException(nameof(newBuffer));
+            }
+
+            var oldBuffer = _configUpdateService.LoadBuffer(job.OldCandidate.ConfigPath);
+            return BuildComparison(job, oldBuffer, CloneBuffer(newBuffer, job.NewCandidate.ConfigPath));
+        }
+
+        private VersionSyncComparisonResult BuildComparison(
+            VersionSyncPairingJob job,
+            ModConfigEditBuffer oldBuffer,
+            ModConfigEditBuffer newBuffer)
+        {
             var oldAnalysis = AnalyzeBuffer(oldBuffer);
-            var resultBuffer = newBuffer;
+            var resultBuffer = CloneBuffer(newBuffer, job.OutputConfigPath);
             var initialNewAnalysis = AnalyzeBuffer(newBuffer);
 
             var toggleDiffItems = BuildToggleDiffItems(oldAnalysis, initialNewAnalysis, ref resultBuffer);
@@ -122,10 +146,26 @@ namespace WuwaModModifier.Common
                 Job = job,
                 OldConfigText = oldBuffer.Content,
                 NewConfigText = newBuffer.Content,
-                ResultBuffer = resultBuffer,
+                NewBuffer = CloneBuffer(newBuffer, job.NewCandidate.ConfigPath),
+                ResultBuffer = CloneBuffer(resultBuffer, job.OutputConfigPath),
                 ToggleDiffItems = toggleDiffItems,
                 ParameterDiffItems = parameterDiffItems,
                 VisibilityDiffItems = visibilityDiffItems
+            };
+        }
+
+        private static ModConfigEditBuffer CloneBuffer(ModConfigEditBuffer buffer, string fallbackSourcePath)
+        {
+            return new ModConfigEditBuffer
+            {
+                SourcePath = string.IsNullOrWhiteSpace(buffer.SourcePath)
+                    ? fallbackSourcePath
+                    : buffer.SourcePath,
+                Content = buffer.Content,
+                LineEnding = string.IsNullOrWhiteSpace(buffer.LineEnding)
+                    ? Environment.NewLine
+                    : buffer.LineEnding,
+                AppliedChanges = buffer.AppliedChanges.ToList()
             };
         }
 
@@ -486,6 +526,17 @@ namespace WuwaModModifier.Common
                                 ResultBindingText = resultVisibilityItem == null ? newBindingText : FormatVisibilityBinding(resultVisibilityItem),
                                 Status = VersionSyncDiffStatus.Created,
                                 CanApply = true,
+                                TargetSectionName = currentVisibilityItem.SectionName,
+                                TargetDrawLabel = JoinValues(currentVisibilityItem.DrawLabels),
+                                VariableName = outcome.VariableName,
+                                ResultDefaultValue = oldAnalysis.Parameters
+                                    .SingleOrDefault(parameter => parameter.Name.Equals(outcome.VariableName, StringComparison.OrdinalIgnoreCase))?.DefaultValue ?? string.Empty,
+                                ResultKeyBindingsText = JoinValues(
+                                    oldAnalysis.Parameters
+                                        .SingleOrDefault(parameter => parameter.Name.Equals(outcome.VariableName, StringComparison.OrdinalIgnoreCase))?
+                                        .KeyBindings
+                                        .Cast<string>()
+                                    ?? Enumerable.Empty<string>()),
                                 Detail = outcome.Detail
                             });
                             continue;

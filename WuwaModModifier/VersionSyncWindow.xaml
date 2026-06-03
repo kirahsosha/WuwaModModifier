@@ -36,6 +36,7 @@
                          Color="#FFBD6C3E"/>
         <SolidColorBrush x:Key="WarmDarkBrush"
                          Color="#FF944E24"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
 
         <Style TargetType="TextBlock">
             <Setter Property="Foreground"
@@ -410,7 +411,7 @@
                                            Text="{Binding ComparisonSummaryText}"
                                            Style="{StaticResource CaptionStyle}"/>
                                 <TextBlock Margin="0,4,0,0"
-                                           Text="按键和参数的“预览结果”列可编辑；修改后点击“同步结构化编辑”刷新最终文本。复杂模型绑定建议直接修改右侧同步预览文本。"
+                                           Text="按键和参数的“预览结果”列可编辑；点击“同步结构化编辑”会把结构化修改和右侧同步预览中的手工改动一起提交到新版文本并刷新对比。需要落盘时再点“保存新版文本”。"
                                            Style="{StaticResource CaptionStyle}"/>
                             </StackPanel>
 
@@ -419,6 +420,10 @@
                                 <Button Content="同步结构化编辑"
                                         Command="{Binding ApplyStructuredPreviewEditsCommand}"
                                         Style="{StaticResource BaseButtonStyle}"/>
+                                <Button Content="保存新版文本"
+                                        Command="{Binding SaveNewConfigTextCommand}"
+                                        Style="{StaticResource SecondaryButtonStyle}"
+                                        Margin="0,8,0,0"/>
                                 <Button Content="应用当前作业"
                                         Command="{Binding ApplySelectedJobCommand}"
                                         Style="{StaticResource WarmButtonStyle}"
@@ -436,7 +441,17 @@
                             <DataGrid Margin="6"
                                       ItemsSource="{Binding ToggleDiffItems}"
                                       AutoGenerateColumns="False"
-                                      IsReadOnly="False">
+                                      IsReadOnly="False"
+                                      PreviewMouseRightButtonDown="SyncableDiffGrid_PreviewMouseRightButtonDown"
+                                      ContextMenuOpening="SyncableDiffGrid_ContextMenuOpening">
+                                <DataGrid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="同步"
+                                                  Command="{Binding PlacementTarget.DataContext.SyncToggleDiffItemCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  Visibility="{Binding PlacementTarget.SelectedItem.CanSyncPreview, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    </ContextMenu>
+                                </DataGrid.ContextMenu>
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="节名"
                                                         Binding="{Binding SectionName}"
@@ -500,7 +515,17 @@
                             <DataGrid Margin="6"
                                       ItemsSource="{Binding ParameterDiffItems}"
                                       AutoGenerateColumns="False"
-                                      IsReadOnly="False">
+                                      IsReadOnly="False"
+                                      PreviewMouseRightButtonDown="SyncableDiffGrid_PreviewMouseRightButtonDown"
+                                      ContextMenuOpening="SyncableDiffGrid_ContextMenuOpening">
+                                <DataGrid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="同步"
+                                                  Command="{Binding PlacementTarget.DataContext.SyncParameterDiffItemCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  Visibility="{Binding PlacementTarget.SelectedItem.CanSyncPreview, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    </ContextMenu>
+                                </DataGrid.ContextMenu>
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="参数"
                                                         Binding="{Binding Name}"
@@ -539,7 +564,17 @@
                             <DataGrid Margin="6"
                                       ItemsSource="{Binding VisibilityDiffItems}"
                                       AutoGenerateColumns="False"
-                                      IsReadOnly="True">
+                                      IsReadOnly="True"
+                                      PreviewMouseRightButtonDown="SyncableDiffGrid_PreviewMouseRightButtonDown"
+                                      ContextMenuOpening="SyncableDiffGrid_ContextMenuOpening">
+                                <DataGrid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="同步"
+                                                  Command="{Binding PlacementTarget.DataContext.SyncVisibilityDiffItemCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  CommandParameter="{Binding PlacementTarget.SelectedItem, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
+                                                  Visibility="{Binding PlacementTarget.SelectedItem.CanSyncPreview, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    </ContextMenu>
+                                </DataGrid.ContextMenu>
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="模型项"
                                                         Binding="{Binding DisplayText}"

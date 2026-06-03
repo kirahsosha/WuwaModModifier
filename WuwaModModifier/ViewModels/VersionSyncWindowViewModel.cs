@@ -14,6 +14,8 @@ namespace WuwaModModifier.ViewModels
         private readonly IMessageService _messages;
         private readonly IModConfigUpdateService _configUpdateService;
         private readonly IModConfigVersionSyncService _versionSyncService;
+        private readonly IModConfigParser _configParser;
+        private readonly IModConfigAnalysisService _configAnalysisService;
         private readonly Dictionary<string, VersionSyncComparisonResult> _comparisonCache;
         private readonly List<VersionSyncFolderCandidate> _importedCandidates;
 
@@ -49,10 +51,14 @@ namespace WuwaModModifier.ViewModels
             IFileSystemService? fileSystem = null,
             IMessageService? messageService = null,
             IModConfigVersionSyncService? versionSyncService = null,
-            IModConfigUpdateService? configUpdateService = null)
+            IModConfigUpdateService? configUpdateService = null,
+            IModConfigParser? configParser = null,
+            IModConfigAnalysisService? configAnalysisService = null)
         {
             _fileSystem = fileSystem ?? new FileSystemService();
             _messages = messageService ?? new MessageService();
+            _configParser = configParser ?? new ModConfigParser(_fileSystem);
+            _configAnalysisService = configAnalysisService ?? new ModConfigAnalysisService(_configParser);
             _configUpdateService = configUpdateService ?? new ModConfigUpdateService(_fileSystem);
             _versionSyncService = versionSyncService ?? new ModConfigVersionSyncService(_fileSystem);
             _comparisonCache = new Dictionary<string, VersionSyncComparisonResult>(StringComparer.OrdinalIgnoreCase);
@@ -83,6 +89,10 @@ namespace WuwaModModifier.ViewModels
             ApplyAllJobsCommand = new RelayCommand(ExecuteApplyAllJobs, CanApplyAllJobs);
             DeleteSelectedPairingCommand = new RelayCommand(ExecuteDeleteSelectedPairing, CanDeleteSelectedPairing);
             ApplyStructuredPreviewEditsCommand = new RelayCommand(ExecuteApplyStructuredPreviewEdits, CanApplyStructuredPreviewEdits);
+            SaveNewConfigTextCommand = new RelayCommand(ExecuteSaveNewConfigText, CanSaveNewConfigText);
+            SyncToggleDiffItemCommand = new RelayCommand<VersionSyncToggleDiffItem>(ExecuteSyncToggleDiffItem, CanSyncToggleDiffItem);
+            SyncParameterDiffItemCommand = new RelayCommand<VersionSyncParameterDiffItem>(ExecuteSyncParameterDiffItem, CanSyncParameterDiffItem);
+            SyncVisibilityDiffItemCommand = new RelayCommand<VersionSyncVisibilityDiffItem>(ExecuteSyncVisibilityDiffItem, CanSyncVisibilityDiffItem);
 
             if (CanRefreshPairings())
             {
@@ -273,6 +283,14 @@ namespace WuwaModModifier.ViewModels
 
         public ICommand ApplyStructuredPreviewEditsCommand { get; }
 
+        public ICommand SaveNewConfigTextCommand { get; }
+
+        public ICommand SyncToggleDiffItemCommand { get; }
+
+        public ICommand SyncParameterDiffItemCommand { get; }
+
+        public ICommand SyncVisibilityDiffItemCommand { get; }
+
         private bool CanRefreshPairings()
         {
             return DirectoryExists(ImportedModDirectoryPath);
@@ -301,6 +319,26 @@ namespace WuwaModModifier.ViewModels
         private bool CanApplyStructuredPreviewEdits()
         {
             return _selectedComparison != null && SelectedPairingJob != null && !SelectedPairingJob.HasPreviewError;
+        }
+
+        private bool CanSaveNewConfigText()
+        {
+            return _selectedComparison != null && SelectedPairingJob != null && !SelectedPairingJob.HasPreviewError;
+        }
+
+        private bool CanSyncToggleDiffItem(VersionSyncToggleDiffItem? item)
+        {
+            return _selectedComparison != null && SelectedPairingJob != null && !SelectedPairingJob.HasPreviewError && item?.CanSyncPreview == true;
+        }
+
+        private bool CanSyncParameterDiffItem(VersionSyncParameterDiffItem? item)
+        {
+            return _selectedComparison != null && SelectedPairingJob != null && !SelectedPairingJob.HasPreviewError && item?.CanSyncPreview == true;
+        }
+
+        private bool CanSyncVisibilityDiffItem(VersionSyncVisibilityDiffItem? item)
+        {
+            return _selectedComparison != null && SelectedPairingJob != null && !SelectedPairingJob.HasPreviewError && item?.CanSyncPreview == true;
         }
 
         private void ExecuteRefreshPairings()
@@ -488,36 +526,90 @@ namespace WuwaModModifier.ViewModels
 
                 foreach (var toggleItem in _toggleDiffItems.Where(item => item.CanApply))
                 {
-                    workingBuffer = _configUpdateService.UpdateKeyBindings(
-                        workingBuffer,
-                        toggleItem.SectionName,
-                        ParseKeyBindings(toggleItem.ResultKeyBindingsText));
-
-                    foreach (var targetEdit in ParseToggleTargetEdits(toggleItem.ResultTargetValuesText))
-                    {
-                        workingBuffer = _configUpdateService.UpdateToggleTargetValues(
-                            workingBuffer,
-                            toggleItem.SectionName,
-                            targetEdit.VariableName,
-                            targetEdit.Values);
-                    }
+                    workingBuffer = ApplyToggleDiffItem(workingBuffer, toggleItem);
                 }
 
                 foreach (var parameterItem in _parameterDiffItems.Where(item => item.CanApply))
                 {
-                    workingBuffer = _configUpdateService.UpdateParameterDefaultValue(
-                        workingBuffer,
-                        parameterItem.Name,
-                        parameterItem.ResultDefaultValue);
+                    workingBuffer = ApplyParameterDiffItem(workingBuffer, parameterItem);
                 }
 
-                _selectedComparison.ResultBuffer = workingBuffer;
-                SetResultConfigTextWithoutResync(workingBuffer.Content);
-                StatusText = "已根据结构化编辑刷新同步预览文本。";
+                CommitNewConfigBaseline(
+                    workingBuffer,
+                    "已将结构化编辑和同步预览中的手工修改提交到新版文本，并刷新对比预览。");
             }
             catch (Exception ex)
             {
                 StatusText = "结构化编辑同步失败。";
+                _messages.ShowError(ex.Message, "版本同步");
+            }
+        }
+
+        private void ExecuteSyncToggleDiffItem(VersionSyncToggleDiffItem? item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            ExecuteSingleItemSync(
+                buffer => ApplyToggleDiffItem(buffer, item),
+                $"已将按键项 {item.SectionName} 的变更提交到新版文本，并刷新对比预览。",
+                "同步按键项失败。");
+        }
+
+        private void ExecuteSyncParameterDiffItem(VersionSyncParameterDiffItem? item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            ExecuteSingleItemSync(
+                buffer => ApplyParameterDiffItem(buffer, item),
+                $"已将参数 {item.Name} 的变更提交到新版文本，并刷新对比预览。",
+                "同步参数项失败。");
+        }
+
+        private void ExecuteSyncVisibilityDiffItem(VersionSyncVisibilityDiffItem? item)
+        {
+            if (item == null)
+            {
+                return;
+            }
+
+            ExecuteSingleItemSync(
+                buffer => ApplyVisibilityDiffItem(buffer, item),
+                $"已将模型项 {item.DisplayText} 的变更提交到新版文本，并刷新对比预览。",
+                "同步模型项失败。");
+        }
+
+        private void ExecuteSaveNewConfigText()
+        {
+            if (_selectedComparison == null || SelectedPairingJob == null)
+            {
+                return;
+            }
+
+            var targetPath = SelectedPairingJob.Job.NewCandidate.ConfigPath;
+            var prompt = SelectedPairingJob.Job.JobKind == VersionSyncJobKind.CloneFromTemplate
+                ? $"这会把当前窗口中的新版原始文本直接写回新版模板配置。\n\n目标：{targetPath}\n\n后续基于该模板重新生成的作业预览也会受影响。\n\n是否继续？"
+                : $"这会把当前窗口中的新版原始文本直接写回新版配置。\n\n目标：{targetPath}\n\n是否继续？";
+
+            if (!_messages.Confirm(prompt, "保存新版文本"))
+            {
+                return;
+            }
+
+            try
+            {
+                var saveResult = _configUpdateService.SaveBuffer(CreateWorkingNewBuffer(), targetPath);
+                StatusText = $"已保存新版原始文本：{saveResult.TargetPath}";
+                _messages.ShowInfo($"已保存到：\n{saveResult.TargetPath}", "版本同步");
+            }
+            catch (Exception ex)
+            {
+                StatusText = "保存新版原始文本失败。";
                 _messages.ShowError(ex.Message, "版本同步");
             }
         }
@@ -621,16 +713,7 @@ namespace WuwaModModifier.ViewModels
                     throw new InvalidOperationException(errorMessage);
                 }
 
-                SelectedPairingJob.ApplyComparison(comparison);
-                _selectedComparison = comparison;
-                OldConfigText = comparison.OldConfigText;
-                NewConfigText = comparison.NewConfigText;
-                SetResultConfigTextWithoutResync(comparison.ResultBuffer.Content);
-                ReplaceCollection(_toggleDiffItems, comparison.ToggleDiffItems);
-                ReplaceCollection(_parameterDiffItems, comparison.ParameterDiffItems);
-                ReplaceCollection(_visibilityDiffItems, comparison.VisibilityDiffItems);
-                OnPropertyChanged(nameof(ComparisonSummaryText));
-                OnPropertyChanged(nameof(SelectedJobSummaryText));
+                ApplyComparisonToCurrentState(comparison);
                 StatusText = $"已生成当前作业的差异预览。{ComparisonSummaryText}";
             }
             catch (Exception ex)
@@ -734,6 +817,7 @@ namespace WuwaModModifier.ViewModels
         {
             if (_comparisonCache.TryGetValue(job.OutputConfigPath, out comparison!))
             {
+                EnsureComparisonBuffers(comparison);
                 comparison.OriginalResultConfigText = string.IsNullOrWhiteSpace(comparison.OriginalResultConfigText)
                     ? comparison.ResultBuffer.Content
                     : comparison.OriginalResultConfigText;
@@ -744,6 +828,7 @@ namespace WuwaModModifier.ViewModels
             try
             {
                 comparison = _versionSyncService.BuildComparison(job);
+                EnsureComparisonBuffers(comparison);
                 comparison.OriginalResultConfigText = string.IsNullOrWhiteSpace(comparison.OriginalResultConfigText)
                     ? comparison.ResultBuffer.Content
                     : comparison.OriginalResultConfigText;
@@ -836,12 +921,187 @@ namespace WuwaModModifier.ViewModels
             });
         }
 
+        private void ExecuteSingleItemSync(
+            Func<ModConfigEditBuffer, ModConfigEditBuffer> applySync,
+            string successStatusText,
+            string failureStatusText)
+        {
+            if (_selectedComparison == null)
+            {
+                return;
+            }
+
+            try
+            {
+                var workingBuffer = applySync(CreateWorkingNewBuffer());
+                CommitNewConfigBaseline(workingBuffer, successStatusText);
+            }
+            catch (Exception ex)
+            {
+                StatusText = failureStatusText;
+                _messages.ShowError(ex.Message, "版本同步");
+            }
+        }
+
+        private void CommitNewConfigBaseline(ModConfigEditBuffer newBuffer, string successStatusText)
+        {
+            if (_selectedComparison == null || SelectedPairingJob == null)
+            {
+                return;
+            }
+
+            var refreshedComparison = _versionSyncService.BuildComparison(SelectedPairingJob.Job, NormalizeNewBuffer(newBuffer));
+            EnsureComparisonBuffers(refreshedComparison);
+            refreshedComparison.OriginalResultConfigText = string.IsNullOrWhiteSpace(refreshedComparison.OriginalResultConfigText)
+                ? refreshedComparison.ResultBuffer.Content
+                : refreshedComparison.OriginalResultConfigText;
+            _comparisonCache[SelectedPairingJob.OutputConfigPath] = refreshedComparison;
+            ApplyComparisonToCurrentState(refreshedComparison);
+            StatusText = successStatusText;
+        }
+
+        private void ApplyComparisonToCurrentState(VersionSyncComparisonResult comparison)
+        {
+            EnsureComparisonBuffers(comparison);
+            SelectedPairingJob?.ApplyComparison(comparison);
+            _selectedComparison = comparison;
+            OldConfigText = comparison.OldConfigText;
+            NewConfigText = comparison.NewBuffer.Content;
+            SetResultConfigTextWithoutResync(comparison.ResultBuffer.Content);
+            ReplaceCollection(_toggleDiffItems, comparison.ToggleDiffItems);
+            ReplaceCollection(_parameterDiffItems, comparison.ParameterDiffItems);
+            ReplaceCollection(_visibilityDiffItems, comparison.VisibilityDiffItems);
+            OnPropertyChanged(nameof(ComparisonSummaryText));
+            OnPropertyChanged(nameof(SelectedJobSummaryText));
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private void EnsureComparisonBuffers(VersionSyncComparisonResult comparison)
+        {
+            if (string.IsNullOrWhiteSpace(comparison.NewBuffer.SourcePath))
+            {
+                comparison.NewBuffer.SourcePath = comparison.Job.NewCandidate.ConfigPath;
+            }
+
+            if (string.IsNullOrWhiteSpace(comparison.NewBuffer.LineEnding))
+            {
+                comparison.NewBuffer.LineEnding = string.IsNullOrWhiteSpace(comparison.ResultBuffer.LineEnding)
+                    ? Environment.NewLine
+                    : comparison.ResultBuffer.LineEnding;
+            }
+
+            if (string.IsNullOrEmpty(comparison.NewBuffer.Content) && !string.IsNullOrEmpty(comparison.NewConfigText))
+            {
+                comparison.NewBuffer.Content = comparison.NewConfigText;
+            }
+
+            comparison.NewConfigText = comparison.NewBuffer.Content;
+
+            if (string.IsNullOrWhiteSpace(comparison.ResultBuffer.SourcePath))
+            {
+                comparison.ResultBuffer.SourcePath = comparison.Job.OutputConfigPath;
+            }
+
+            if (string.IsNullOrWhiteSpace(comparison.ResultBuffer.LineEnding))
+            {
+                comparison.ResultBuffer.LineEnding = string.IsNullOrWhiteSpace(comparison.NewBuffer.LineEnding)
+                    ? Environment.NewLine
+                    : comparison.NewBuffer.LineEnding;
+            }
+        }
+
+        private ModConfigEditBuffer ApplyToggleDiffItem(ModConfigEditBuffer workingBuffer, VersionSyncToggleDiffItem toggleItem)
+        {
+            workingBuffer = _configUpdateService.UpdateKeyBindings(
+                workingBuffer,
+                toggleItem.SectionName,
+                ParseKeyBindings(toggleItem.ResultKeyBindingsText));
+
+            foreach (var targetEdit in ParseToggleTargetEdits(toggleItem.ResultTargetValuesText))
+            {
+                workingBuffer = _configUpdateService.UpdateToggleTargetValues(
+                    workingBuffer,
+                    toggleItem.SectionName,
+                    targetEdit.VariableName,
+                    targetEdit.Values);
+            }
+
+            return workingBuffer;
+        }
+
+        private ModConfigEditBuffer ApplyParameterDiffItem(ModConfigEditBuffer workingBuffer, VersionSyncParameterDiffItem parameterItem)
+        {
+            return _configUpdateService.UpdateParameterDefaultValue(
+                workingBuffer,
+                parameterItem.Name,
+                parameterItem.ResultDefaultValue);
+        }
+
+        private ModConfigEditBuffer ApplyVisibilityDiffItem(ModConfigEditBuffer workingBuffer, VersionSyncVisibilityDiffItem visibilityItem)
+        {
+            if (string.IsNullOrWhiteSpace(visibilityItem.TargetSectionName) ||
+                string.IsNullOrWhiteSpace(visibilityItem.TargetDrawLabel) ||
+                string.IsNullOrWhiteSpace(visibilityItem.VariableName))
+            {
+                throw new InvalidOperationException("当前模型项缺少可同步的绑定信息。",
+                    innerException: null);
+            }
+
+            var currentAnalysis = AnalyzeBuffer(workingBuffer);
+            var existingParameter = currentAnalysis.Parameters.SingleOrDefault(parameter =>
+                parameter.Name.Equals(visibilityItem.VariableName, StringComparison.OrdinalIgnoreCase));
+            var desiredKeyBindings = ParseKeyBindings(visibilityItem.ResultKeyBindingsText);
+
+            if (existingParameter == null)
+            {
+                if (desiredKeyBindings.Count == 0)
+                {
+                    throw new InvalidOperationException("当前模型项缺少可迁移的快捷键绑定。");
+                }
+
+                workingBuffer = _configUpdateService.CreateVisibilityBinding(
+                    workingBuffer,
+                    visibilityItem.TargetSectionName,
+                    visibilityItem.TargetDrawLabel,
+                    visibilityItem.VariableName,
+                    desiredKeyBindings);
+            }
+            else
+            {
+                if (existingParameter.KeyBindings.Count == 0 && desiredKeyBindings.Count > 0)
+                {
+                    workingBuffer = _configUpdateService.CreateToggleBinding(
+                        workingBuffer,
+                        visibilityItem.VariableName,
+                        desiredKeyBindings);
+                }
+
+                workingBuffer = _configUpdateService.BindVisibilityToParameter(
+                    workingBuffer,
+                    visibilityItem.TargetSectionName,
+                    visibilityItem.TargetDrawLabel,
+                    visibilityItem.VariableName);
+            }
+
+            if (!string.IsNullOrWhiteSpace(visibilityItem.ResultDefaultValue))
+            {
+                workingBuffer = _configUpdateService.UpdateParameterDefaultValue(
+                    workingBuffer,
+                    visibilityItem.VariableName,
+                    visibilityItem.ResultDefaultValue);
+            }
+
+            return workingBuffer;
+        }
+
         private ModConfigEditBuffer CreateWorkingResultBuffer()
         {
             if (_selectedComparison == null)
             {
                 throw new InvalidOperationException("当前没有可编辑的同步预览。");
             }
+
+            EnsureComparisonBuffers(_selectedComparison);
 
             return new ModConfigEditBuffer
             {
@@ -852,6 +1112,42 @@ namespace WuwaModModifier.ViewModels
                     : _selectedComparison.ResultBuffer.LineEnding,
                 AppliedChanges = _selectedComparison.ResultBuffer.AppliedChanges.ToList()
             };
+        }
+
+        private ModConfigEditBuffer CreateWorkingNewBuffer()
+        {
+            if (_selectedComparison == null)
+            {
+                throw new InvalidOperationException("当前没有可编辑的新版文本。");
+            }
+
+            EnsureComparisonBuffers(_selectedComparison);
+            return NormalizeNewBuffer(_selectedComparison.NewBuffer);
+        }
+
+        private ModConfigEditBuffer NormalizeNewBuffer(ModConfigEditBuffer buffer)
+        {
+            if (SelectedPairingJob == null)
+            {
+                throw new InvalidOperationException("当前没有选中的同步作业。");
+            }
+
+            return new ModConfigEditBuffer
+            {
+                SourcePath = string.IsNullOrWhiteSpace(buffer.SourcePath)
+                    ? SelectedPairingJob.Job.NewCandidate.ConfigPath
+                    : buffer.SourcePath,
+                Content = buffer.Content,
+                LineEnding = string.IsNullOrWhiteSpace(buffer.LineEnding)
+                    ? Environment.NewLine
+                    : buffer.LineEnding,
+                AppliedChanges = buffer.AppliedChanges.ToList()
+            };
+        }
+
+        private ModConfigAnalysisResult AnalyzeBuffer(ModConfigEditBuffer buffer)
+        {
+            return _configAnalysisService.Analyze(_configParser.Parse(buffer.Content));
         }
 
         private void SetResultConfigTextWithoutResync(string value)

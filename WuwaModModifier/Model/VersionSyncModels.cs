@@ -51,6 +51,7 @@ namespace WuwaModModifier.Model
         public string ResultTargetValuesText { get; set; } = string.Empty;
         public VersionSyncDiffStatus Status { get; set; }
         public bool CanApply { get; set; }
+        public bool CanSyncPreview => CanApply && (Status == VersionSyncDiffStatus.Updated || Status == VersionSyncDiffStatus.Created);
     }
 
     public class VersionSyncParameterDiffItem
@@ -61,6 +62,7 @@ namespace WuwaModModifier.Model
         public string ResultDefaultValue { get; set; } = string.Empty;
         public VersionSyncDiffStatus Status { get; set; }
         public bool CanApply { get; set; }
+        public bool CanSyncPreview => CanApply && (Status == VersionSyncDiffStatus.Updated || Status == VersionSyncDiffStatus.Created);
     }
 
     public class VersionSyncVisibilityDiffItem
@@ -73,6 +75,12 @@ namespace WuwaModModifier.Model
         public VersionSyncDiffStatus Status { get; set; }
         public string Detail { get; set; } = string.Empty;
         public bool CanApply { get; set; }
+        public string TargetSectionName { get; set; } = string.Empty;
+        public string TargetDrawLabel { get; set; } = string.Empty;
+        public string VariableName { get; set; } = string.Empty;
+        public string ResultDefaultValue { get; set; } = string.Empty;
+        public string ResultKeyBindingsText { get; set; } = string.Empty;
+        public bool CanSyncPreview => CanApply && (Status == VersionSyncDiffStatus.Updated || Status == VersionSyncDiffStatus.Created);
     }
 
     public class VersionSyncComparisonResult
@@ -81,6 +89,7 @@ namespace WuwaModModifier.Model
         public string OldConfigText { get; set; } = string.Empty;
         public string NewConfigText { get; set; } = string.Empty;
         public string OriginalResultConfigText { get; set; } = string.Empty;
+        public ModConfigEditBuffer NewBuffer { get; set; } = new ModConfigEditBuffer();
         public ModConfigEditBuffer ResultBuffer { get; set; } = new ModConfigEditBuffer();
         public List<VersionSyncToggleDiffItem> ToggleDiffItems { get; set; } = new List<VersionSyncToggleDiffItem>();
         public List<VersionSyncParameterDiffItem> ParameterDiffItems { get; set; } = new List<VersionSyncParameterDiffItem>();

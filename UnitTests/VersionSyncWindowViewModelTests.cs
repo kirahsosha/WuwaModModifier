@@ -223,23 +223,24 @@ namespace UnitTests
         }
 
         [Fact]
-        public void ApplyStructuredPreviewEditsCommand_ShouldRefreshResultTextAndApplyEditedContent()
+        public void ApplyStructuredPreviewEditsCommand_ShouldCommitEditedPreviewToNewConfigAndRefreshComparison()
         {
             var importedRoot = @"C:\mods\Encore";
             var job = CreateJob("[801]old", "[801]new", @"C:\mods\new\out_structured\mod.ini");
             var service = CreateVersionSyncService(importedRoot, job);
+            var initialConfigText =
+                "[Constants]\n" +
+                "global persist $show = 2\n\n" +
+                "[Key show]\n" +
+                "condition = $object_detected\n" +
+                "key = F5\n" +
+                "type = cycle\n" +
+                "$show = 0,1\n";
             service.ComparisonsByOutputPath[job.OutputConfigPath] = CreateComparison(
                 job,
                 oldConfigText: "old",
-                newConfigText: "new",
-                resultConfigText:
-                    "[Constants]\n" +
-                    "global persist $show = 2\n\n" +
-                    "[Key show]\n" +
-                    "condition = $object_detected\n" +
-                    "key = F5\n" +
-                    "type = cycle\n" +
-                    "$show = 0,1\n",
+                newConfigText: initialConfigText,
+                resultConfigText: initialConfigText,
                 toggleDiffItems: new[]
                 {
                     new VersionSyncToggleDiffItem
@@ -268,25 +269,35 @@ namespace UnitTests
                     }
                 });
 
+            service.BufferedComparisonFactory = (pairingJob, newBuffer) => CreateComparison(
+                pairingJob,
+                oldConfigText: "old",
+                newConfigText: newBuffer.Content,
+                resultConfigText: newBuffer.Content);
+
+            var fileSystem = new TestFileSystemService(importedRoot);
+
             var viewModel = new VersionSyncWindowViewModel(
                 importedRoot,
-                new TestFileSystemService(importedRoot),
+                fileSystem,
                 new TestMessageService(),
                 service,
-                new ModConfigUpdateService(new TestFileSystemService(importedRoot)));
+                new ModConfigUpdateService(fileSystem));
 
             viewModel.ToggleDiffItems[0].ResultKeyBindingsText = "F8";
             viewModel.ToggleDiffItems[0].ResultTargetValuesText = "$show = 0, 1, 2, 3, 4";
             viewModel.ParameterDiffItems[0].ResultDefaultValue = "7";
+            viewModel.ResultConfigText += "\n; manual note";
 
             viewModel.ApplyStructuredPreviewEditsCommand.Execute(null);
-            viewModel.ApplySelectedJobCommand.Execute(null);
 
-            Assert.Contains("key = F8", viewModel.ResultConfigText);
-            Assert.Contains("$show = 0, 1, 2, 3, 4", viewModel.ResultConfigText);
-            Assert.Contains("global persist $show = 7", viewModel.ResultConfigText);
-            Assert.Single(service.AppliedContents);
-            Assert.Equal(viewModel.ResultConfigText, service.AppliedContents[0]);
+            var committedText = Assert.Single(service.BufferedBuildContents);
+            Assert.Contains("key = F8", committedText);
+            Assert.Contains("$show = 0, 1, 2, 3, 4", committedText);
+            Assert.Contains("global persist $show = 7", committedText);
+            Assert.Contains("; manual note", committedText);
+            Assert.Equal(committedText, viewModel.NewConfigText);
+            Assert.Equal(committedText, viewModel.ResultConfigText);
         }
 
         [Fact]
@@ -317,6 +328,269 @@ namespace UnitTests
 
             Assert.Single(service.AppliedContents);
             Assert.Equal("custom edited result", service.AppliedContents[0]);
+        }
+
+        [Fact]
+        public void SaveNewConfigTextCommand_ShouldWriteCurrentNewConfigBaselineToDisk()
+        {
+            var importedRoot = @"C:\mods\Encore";
+            var job = CreateJob("[905]old", "[905]new", @"C:\mods\new\out_save_new\mod.ini");
+            var service = CreateVersionSyncService(importedRoot, job);
+            var newConfigText = "new baseline text";
+            service.ComparisonsByOutputPath[job.OutputConfigPath] = CreateComparison(
+                job,
+                oldConfigText: "old",
+                newConfigText: newConfigText,
+                resultConfigText: "preview result text");
+
+            var fileSystem = new TestFileSystemService(importedRoot);
+            var messages = new TestMessageService();
+            var viewModel = new VersionSyncWindowViewModel(
+                importedRoot,
+                fileSystem,
+                messages,
+                service,
+                new ModConfigUpdateService(fileSystem));
+
+            viewModel.ResultConfigText = "preview-only edit";
+            viewModel.SaveNewConfigTextCommand.Execute(null);
+
+            Assert.True(fileSystem.WrittenTexts.TryGetValue(job.NewCandidate.ConfigPath, out var savedContent));
+            Assert.Equal(newConfigText, savedContent);
+            Assert.Contains(job.NewCandidate.ConfigPath, messages.LastConfirmationMessage);
+        }
+
+        [Fact]
+        public void SyncToggleDiffItemCommand_ShouldCommitSelectedToggleItemToNewConfigAndRefreshComparison()
+        {
+            var importedRoot = @"C:\mods\Encore";
+            var job = CreateJob("[911]old", "[911]new", @"C:\mods\new\out_toggle_sync\mod.ini");
+            var service = CreateVersionSyncService(importedRoot, job);
+            var baselineConfigText =
+                "[Constants]\n" +
+                "global persist $show = 0\n" +
+                "global persist $other = 0\n\n" +
+                "[Key show]\n" +
+                "condition = $object_detected\n" +
+                "key = F1\n" +
+                "type = cycle\n" +
+                "$show = 0,1\n\n" +
+                "[Key other]\n" +
+                "condition = $object_detected\n" +
+                "key = F2\n" +
+                "type = cycle\n" +
+                "$other = 0,1\n";
+            service.ComparisonsByOutputPath[job.OutputConfigPath] = CreateComparison(
+                job,
+                newConfigText: baselineConfigText,
+                resultConfigText: baselineConfigText,
+                toggleDiffItems: new[]
+                {
+                    new VersionSyncToggleDiffItem
+                    {
+                        SectionName = "Key show",
+                        ResultKeyBindingsText = "F8",
+                        ResultTargetValuesText = "$show = 0, 1, 2",
+                        Status = VersionSyncDiffStatus.Updated,
+                        CanApply = true
+                    },
+                    new VersionSyncToggleDiffItem
+                    {
+                        SectionName = "Key other",
+                        ResultKeyBindingsText = "F9",
+                        ResultTargetValuesText = "$other = 0, 1, 2",
+                        Status = VersionSyncDiffStatus.Updated,
+                        CanApply = true
+                    }
+                },
+                parameterDiffItems: new[]
+                {
+                    new VersionSyncParameterDiffItem
+                    {
+                        Name = "$show",
+                        ResultDefaultValue = "7",
+                        Status = VersionSyncDiffStatus.Updated,
+                        CanApply = true
+                    }
+                });
+
+            service.BufferedComparisonFactory = (pairingJob, newBuffer) => CreateComparison(
+                pairingJob,
+                newConfigText: newBuffer.Content,
+                resultConfigText: newBuffer.Content);
+
+            var fileSystem = new TestFileSystemService(importedRoot);
+
+            var viewModel = new VersionSyncWindowViewModel(
+                importedRoot,
+                fileSystem,
+                new TestMessageService(),
+                service,
+                new ModConfigUpdateService(fileSystem));
+
+            viewModel.ResultConfigText += "\n; preview-only edit";
+
+            var selectedItem = viewModel.ToggleDiffItems[0];
+            viewModel.SyncToggleDiffItemCommand.Execute(selectedItem);
+
+            var committedText = Assert.Single(service.BufferedBuildContents);
+            Assert.Contains("key = F8", committedText);
+            Assert.Contains("$show = 0, 1, 2", committedText);
+            Assert.Contains("key = F2", committedText);
+            Assert.DoesNotContain("key = F9", committedText);
+            Assert.DoesNotContain("; preview-only edit", committedText);
+            Assert.Equal(committedText, viewModel.NewConfigText);
+            Assert.Equal(committedText, viewModel.ResultConfigText);
+        }
+
+        [Fact]
+        public void SyncParameterDiffItemCommand_ShouldCommitSelectedParameterItemToNewConfigAndRefreshComparison()
+        {
+            var importedRoot = @"C:\mods\Encore";
+            var job = CreateJob("[912]old", "[912]new", @"C:\mods\new\out_parameter_sync\mod.ini");
+            var service = CreateVersionSyncService(importedRoot, job);
+            var baselineConfigText =
+                "[Constants]\n" +
+                "global persist $show = 0\n" +
+                "global persist $other = 1\n\n" +
+                "[Key show]\n" +
+                "condition = $object_detected\n" +
+                "key = F1\n" +
+                "type = cycle\n" +
+                "$show = 0,1\n";
+            service.ComparisonsByOutputPath[job.OutputConfigPath] = CreateComparison(
+                job,
+                newConfigText: baselineConfigText,
+                resultConfigText: baselineConfigText,
+                toggleDiffItems: new[]
+                {
+                    new VersionSyncToggleDiffItem
+                    {
+                        SectionName = "Key show",
+                        ResultKeyBindingsText = "F8",
+                        ResultTargetValuesText = "$show = 0, 1, 2",
+                        Status = VersionSyncDiffStatus.Updated,
+                        CanApply = true
+                    }
+                },
+                parameterDiffItems: new[]
+                {
+                    new VersionSyncParameterDiffItem
+                    {
+                        Name = "$show",
+                        ResultDefaultValue = "7",
+                        Status = VersionSyncDiffStatus.Updated,
+                        CanApply = true
+                    },
+                    new VersionSyncParameterDiffItem
+                    {
+                        Name = "$other",
+                        ResultDefaultValue = "9",
+                        Status = VersionSyncDiffStatus.Updated,
+                        CanApply = true
+                    }
+                });
+
+            service.BufferedComparisonFactory = (pairingJob, newBuffer) => CreateComparison(
+                pairingJob,
+                newConfigText: newBuffer.Content,
+                resultConfigText: newBuffer.Content);
+
+            var fileSystem = new TestFileSystemService(importedRoot);
+
+            var viewModel = new VersionSyncWindowViewModel(
+                importedRoot,
+                fileSystem,
+                new TestMessageService(),
+                service,
+                new ModConfigUpdateService(fileSystem));
+
+            viewModel.ResultConfigText += "\n; preview-only edit";
+
+            var selectedItem = viewModel.ParameterDiffItems[0];
+            viewModel.SyncParameterDiffItemCommand.Execute(selectedItem);
+
+            var committedText = Assert.Single(service.BufferedBuildContents);
+            Assert.Contains("global persist $show = 7", committedText);
+            Assert.Contains("global persist $other = 1", committedText);
+            Assert.DoesNotContain("global persist $other = 9", committedText);
+            Assert.Contains("key = F1", committedText);
+            Assert.DoesNotContain("key = F8", committedText);
+            Assert.DoesNotContain("; preview-only edit", committedText);
+            Assert.Equal(committedText, viewModel.NewConfigText);
+        }
+
+        [Fact]
+        public void SyncVisibilityDiffItemCommand_ShouldCommitSelectedVisibilityBindingToNewConfigAndRefreshComparison()
+        {
+            var importedRoot = @"C:\mods\Encore";
+            var job = CreateJob("[913]old", "[913]new", @"C:\mods\new\out_visibility_sync\mod.ini");
+            var service = CreateVersionSyncService(importedRoot, job);
+            var baselineConfigText =
+                "[Constants]\n" +
+                "global $object_detected = 1\n\n" +
+                "[TextureOverrideComponent0]\n" +
+                "; Draw Component 0.HAT\n" +
+                "drawindexed = 12, 0, 0\n";
+            service.ComparisonsByOutputPath[job.OutputConfigPath] = CreateComparison(
+                job,
+                newConfigText: baselineConfigText,
+                resultConfigText: baselineConfigText,
+                parameterDiffItems: new[]
+                {
+                    new VersionSyncParameterDiffItem
+                    {
+                        Name = "$other",
+                        ResultDefaultValue = "9",
+                        Status = VersionSyncDiffStatus.Updated,
+                        CanApply = true
+                    }
+                },
+                visibilityDiffItems: new[]
+                {
+                    new VersionSyncVisibilityDiffItem
+                    {
+                        VisibilityKey = "TextureOverrideComponent0|0.HAT",
+                        DisplayText = "0.HAT",
+                        OldBindingText = "$showHat = 1",
+                        NewBindingText = string.Empty,
+                        ResultBindingText = "$showHat = 1 | NUMPAD1",
+                        Status = VersionSyncDiffStatus.Created,
+                        CanApply = true,
+                        TargetSectionName = "TextureOverrideComponent0",
+                        TargetDrawLabel = "0.HAT",
+                        VariableName = "$showHat",
+                        ResultDefaultValue = "1",
+                        ResultKeyBindingsText = "NUMPAD1"
+                    }
+                });
+
+            service.BufferedComparisonFactory = (pairingJob, newBuffer) => CreateComparison(
+                pairingJob,
+                newConfigText: newBuffer.Content,
+                resultConfigText: newBuffer.Content);
+
+            var fileSystem = new TestFileSystemService(importedRoot);
+
+            var viewModel = new VersionSyncWindowViewModel(
+                importedRoot,
+                fileSystem,
+                new TestMessageService(),
+                service,
+                new ModConfigUpdateService(fileSystem));
+
+            viewModel.ResultConfigText += "\n; preview-only edit";
+
+            var selectedItem = viewModel.VisibilityDiffItems[0];
+            viewModel.SyncVisibilityDiffItemCommand.Execute(selectedItem);
+
+            var committedText = Assert.Single(service.BufferedBuildContents);
+            Assert.Contains("global persist $showHat = 1", committedText);
+            Assert.Contains("key = NUMPAD1", committedText);
+            Assert.Contains("if $showHat == 1", committedText);
+            Assert.DoesNotContain("$other = 9", committedText);
+            Assert.DoesNotContain("; preview-only edit", committedText);
+            Assert.Equal(committedText, viewModel.NewConfigText);
         }
 
         private static TestVersionSyncService CreateVersionSyncService(
@@ -363,9 +637,17 @@ namespace UnitTests
                 Job = job,
                 OldConfigText = oldConfigText,
                 NewConfigText = newConfigText,
+                NewBuffer = new ModConfigEditBuffer
+                {
+                    SourcePath = job.NewCandidate.ConfigPath,
+                    Content = newConfigText,
+                    LineEnding = "\n"
+                },
                 ResultBuffer = new ModConfigEditBuffer
                 {
+                    SourcePath = job.OutputConfigPath,
                     Content = resultConfigText,
+                    LineEnding = "\n",
                     AppliedChanges = (toggleDiffItems?.Any(item => item.CanApply) == true ||
                         parameterDiffItems?.Any(item => item.CanApply) == true ||
                         visibilityDiffItems?.Any(item => item.CanApply) == true)
@@ -423,9 +705,13 @@ namespace UnitTests
 
             public List<string> BuiltOutputs { get; } = new List<string>();
 
+            public List<string> BufferedBuildContents { get; } = new List<string>();
+
             public List<string> AppliedOutputs { get; } = new List<string>();
 
             public List<string> AppliedContents { get; } = new List<string>();
+
+            public Func<VersionSyncPairingJob, ModConfigEditBuffer, VersionSyncComparisonResult>? BufferedComparisonFactory { get; set; }
 
             public IReadOnlyList<VersionSyncFolderCandidate> DiscoverModCandidates(string modRootPath)
             {
@@ -459,6 +745,58 @@ namespace UnitTests
                 return ComparisonsByOutputPath[job.OutputConfigPath];
             }
 
+            public VersionSyncComparisonResult BuildComparison(VersionSyncPairingJob job, ModConfigEditBuffer newBuffer)
+            {
+                BuiltOutputs.Add($"{job.OutputConfigPath}|buffer");
+                BufferedBuildContents.Add(newBuffer.Content);
+
+                if (BufferedComparisonFactory != null)
+                {
+                    return BufferedComparisonFactory(job, new ModConfigEditBuffer
+                    {
+                        SourcePath = newBuffer.SourcePath,
+                        Content = newBuffer.Content,
+                        LineEnding = newBuffer.LineEnding,
+                        AppliedChanges = newBuffer.AppliedChanges.ToList()
+                    });
+                }
+
+                if (!ComparisonsByOutputPath.TryGetValue(job.OutputConfigPath, out var comparison))
+                {
+                    throw new KeyNotFoundException(job.OutputConfigPath);
+                }
+
+                return new VersionSyncComparisonResult
+                {
+                    Job = comparison.Job,
+                    OldConfigText = comparison.OldConfigText,
+                    NewConfigText = newBuffer.Content,
+                    NewBuffer = new ModConfigEditBuffer
+                    {
+                        SourcePath = string.IsNullOrWhiteSpace(newBuffer.SourcePath)
+                            ? comparison.Job.NewCandidate.ConfigPath
+                            : newBuffer.SourcePath,
+                        Content = newBuffer.Content,
+                        LineEnding = string.IsNullOrWhiteSpace(newBuffer.LineEnding)
+                            ? Environment.NewLine
+                            : newBuffer.LineEnding,
+                        AppliedChanges = newBuffer.AppliedChanges.ToList()
+                    },
+                    ResultBuffer = new ModConfigEditBuffer
+                    {
+                        SourcePath = comparison.Job.OutputConfigPath,
+                        Content = newBuffer.Content,
+                        LineEnding = string.IsNullOrWhiteSpace(newBuffer.LineEnding)
+                            ? Environment.NewLine
+                            : newBuffer.LineEnding,
+                        AppliedChanges = newBuffer.AppliedChanges.ToList()
+                    },
+                    ToggleDiffItems = comparison.ToggleDiffItems.ToList(),
+                    ParameterDiffItems = comparison.ParameterDiffItems.ToList(),
+                    VisibilityDiffItems = comparison.VisibilityDiffItems.ToList()
+                };
+            }
+
             public VersionSyncApplyResult ApplyComparison(VersionSyncComparisonResult comparison)
             {
                 if (FailingOutputs.Contains(comparison.Job.OutputConfigPath))
@@ -487,18 +825,21 @@ namespace UnitTests
                 _existingDirectories = new HashSet<string>(existingDirectories, StringComparer.OrdinalIgnoreCase);
             }
 
+            public Dictionary<string, string> WrittenTexts { get; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
             public bool DirectoryExists(string path) => _existingDirectories.Contains(path);
 
             public string[] GetDirectories(string path) => Array.Empty<string>();
 
-            public bool FileExists(string path) => false;
+            public bool FileExists(string path) => WrittenTexts.ContainsKey(path);
 
             public string[] GetFiles(string path, string searchPattern) => Array.Empty<string>();
 
-            public string ReadAllText(string path) => string.Empty;
+            public string ReadAllText(string path) => WrittenTexts.TryGetValue(path, out var content) ? content : string.Empty;
 
             public void WriteAllText(string path, string content)
             {
+                WrittenTexts[path] = content;
             }
 
             public void CreateDirectory(string path)

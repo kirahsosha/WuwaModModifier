@@ -8,6 +8,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using WuwaModModifier.Common;
+using WuwaModModifier.Model;
 using WuwaModModifier.ViewModels;
 
 namespace WuwaModModifier
@@ -105,10 +106,19 @@ namespace WuwaModModifier
 
         private void PairingJobsGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
         {
-            var row = FindAncestor<DataGridRow>(e.OriginalSource as DependencyObject);
-            if (row?.Item != null)
+            SelectDataGridRowFromPointer(e.OriginalSource as DependencyObject);
+        }
+
+        private void SyncableDiffGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            SelectDataGridRowFromPointer(e.OriginalSource as DependencyObject);
+        }
+
+        private void SyncableDiffGrid_ContextMenuOpening(object sender, ContextMenuEventArgs e)
+        {
+            if (sender is not DataGrid dataGrid || !CanOpenSyncContextMenu(dataGrid.SelectedItem))
             {
-                row.IsSelected = true;
+                e.Handled = true;
             }
         }
 
@@ -870,6 +880,26 @@ namespace WuwaModModifier
             }
 
             return null;
+        }
+
+        private static void SelectDataGridRowFromPointer(DependencyObject? originalSource)
+        {
+            var row = FindAncestor<DataGridRow>(originalSource);
+            if (row?.Item != null)
+            {
+                row.IsSelected = true;
+            }
+        }
+
+        private static bool CanOpenSyncContextMenu(object? selectedItem)
+        {
+            return selectedItem switch
+            {
+                VersionSyncToggleDiffItem toggleItem => toggleItem.CanSyncPreview,
+                VersionSyncParameterDiffItem parameterItem => parameterItem.CanSyncPreview,
+                VersionSyncVisibilityDiffItem visibilityItem => visibilityItem.CanSyncPreview,
+                _ => false
+            };
         }
 
         private readonly record struct ComparisonScrollPosition(double HorizontalOffset, double VerticalOffset);

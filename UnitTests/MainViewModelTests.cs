@@ -1432,6 +1432,64 @@ namespace UnitTests
         }
 
         [Fact]
+        public void ApplyVisibilityChangeCommand_ShouldAllowDirectHideForUnboundVisibilityItem()
+        {
+            var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
+            var modRoot = Path.Combine(tempRoot, "Mods");
+            var modDirectory = Path.Combine(modRoot, "Rover Female", "[636196]rover female gold 32lodfix");
+            Directory.CreateDirectory(modDirectory);
+
+            try
+            {
+                var configPath = Path.Combine(modDirectory, "mod.ini");
+                File.WriteAllText(
+                    configPath,
+                    "[TextureOverrideComponent0]\n" +
+                    "; Draw Component 0.GOLD\n" +
+                    "drawindexed = 12, 0, 0\n");
+
+                var messages = new TestMessageService();
+                var vm = new MainViewModel(new FileSystemService(), messages)
+                {
+                    ModFolderPath = modRoot
+                };
+
+                vm.SelectedDirectoryItem = new DirectoryItemViewModel
+                {
+                    Name = "[636196]rover female gold 32lodfix",
+                    FullPath = modDirectory,
+                    Id = "636196",
+                    IsDirectory = false
+                };
+
+                vm.SelectedVisibilityItem = Assert.Single(vm.SelectedVisibilityItems);
+                Assert.False(vm.SelectedVisibilityItem.CanToggleSafely);
+                Assert.True(vm.SelectedVisibilityItem.CanBindSafely);
+                Assert.False(vm.ApplyVisibilityChangeCommand.CanExecute(null));
+
+                vm.VisibilityTargetIsVisible = false;
+
+                Assert.True(vm.ApplyVisibilityChangeCommand.CanExecute(null));
+
+                vm.ApplyVisibilityChangeCommand.Execute(null);
+
+                Assert.True(vm.HasPendingConfigChanges);
+                Assert.Contains("if 0", vm.RawConfigEditorText);
+                Assert.Contains("drawindexed = 12, 0, 0", vm.RawConfigEditorText);
+                var visibilityHistory = Assert.Single(vm.ModificationHistoryItems);
+                Assert.Equal("模型显示修改", visibilityHistory.OperationTypeText);
+                Assert.Contains("隐藏", visibilityHistory.SummaryText);
+            }
+            finally
+            {
+                if (Directory.Exists(tempRoot))
+                {
+                    Directory.Delete(tempRoot, true);
+                }
+            }
+        }
+
+        [Fact]
         public void ApplyStandardizationCommand_ShouldUpdateBuffer_AndSaveToMod()
         {
             var tempRoot = Path.Combine(Path.GetTempPath(), $"WuwaModModifierTests_{Path.GetRandomFileName()}");
