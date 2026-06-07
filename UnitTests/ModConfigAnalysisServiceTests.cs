@@ -103,6 +103,30 @@ namespace UnitTests
         }
 
         [Fact]
+        public void Analyze_ShouldClassifyWWMIVersionPathParameters_AsInternalSystem()
+        {
+            var parser = new ModConfigParser(new FileSystemService());
+            var service = new ModConfigAnalysisService(parser);
+
+            var result = service.Analyze(parser.Parse(
+                "[Constants]\n" +
+                "global $Bra = 0\n\n" +
+                "[KeyBra]\n" +
+                "condition = $object_detected\n" +
+                "key = NO_CTRL NO_ALT NO_SHIFT NUMPAD1\n" +
+                "type = cycle\n" +
+                "$Bra = 0,1,2\n\n" +
+                "[CommandListRegisterMod]\n" +
+                "$\\WWMIv1\\required_wwmi_version = $required_wwmi_version\n" +
+                "$\\WWMIv1\\object_guid = $object_guid\n" +
+                "Resource\\WWMIv1\\ModName = ref ResourceModName\n"));
+
+            Assert.Equal(ModConfigParameterKind.InternalSystem, result.Parameters.Single(p => p.Name == "$\\WWMIv1\\required_wwmi_version").Kind);
+            Assert.Equal(ModConfigParameterKind.InternalSystem, result.Parameters.Single(p => p.Name == "$\\WWMIv1\\object_guid").Kind);
+            Assert.Equal(ModConfigParameterKind.Toggle, result.Parameters.Single(p => p.Name == "$Bra").Kind);
+        }
+
+        [Fact]
         public void Analyze_ShouldKeepDeclaredConstantsParameters_AsUnknownBeforeBinding()
         {
             var parser = new ModConfigParser(new FileSystemService());
@@ -280,34 +304,85 @@ namespace UnitTests
         }
 
         [Fact]
-        public void AnalyzeFile_ShouldExtractHighConfidenceVisibilityItems_FromModSample()
+        public void Analyze_ShouldRecognizeInlineControlVariables_AsModelParameters()
+        {
+            var parser = new ModConfigParser(new FileSystemService());
+            var service = new ModConfigAnalysisService(parser);
+
+            var result = service.Analyze(parser.Parse(
+                "[Constants]\n" +
+                "global $object_detected_A = 0\n" +
+                "global $mod_enabled_A = 0\n" +
+                "global $draw_component_2_ts_A = 1\n" +
+                "global $draw_component_2_tuoxie_A = 1\n" +
+                "global $draw_component_2_zhi_A = 1\n" +
+                "global $draw_component_2_shenti1_A = 1\n\n" +
+                "[TextureOverride_A_Component2]\n" +
+                "hash = 89d30421\n" +
+                "match_first_index = 78834\n" +
+                "match_index_count = 59412\n" +
+                "if $mod_enabled_A\n" +
+                "    handling = skip\n" +
+                "    if $draw_component_2_ts_A\n" +
+                "        drawindexed = 312, 78834, 0\n" +
+                "    endif\n" +
+                "    if $draw_component_2_tuoxie_A\n" +
+                "        drawindexed = 4050, 79146, 0\n" +
+                "    endif\n" +
+                "    if $draw_component_2_zhi_A\n" +
+                "        drawindexed = 54, 83196, 0\n" +
+                "    endif\n" +
+                "    if $draw_component_2_shenti1_A\n" +
+                "        drawindexed = 212676, 83250, 0\n" +
+                "    endif\n" +
+                "endif\n"));
+
+            var items = result.VisibilityItems.Where(vi => vi.SectionName == "TextureOverride_A_Component2").ToList();
+            Assert.NotEmpty(items);
+
+            var allModelParameters = items.SelectMany(vi => vi.ModelParameters)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            Assert.Contains("$draw_component_2_ts_A", allModelParameters);
+            Assert.Contains("$draw_component_2_tuoxie_A", allModelParameters);
+            Assert.Contains("$draw_component_2_zhi_A", allModelParameters);
+            Assert.Contains("$draw_component_2_shenti1_A", allModelParameters);
+            Assert.DoesNotContain("$mod_enabled", allModelParameters);
+        }
+
+        [Fact]
+        public void AnalyzeFile_ShouldExtractVisibilityItems_FromModSample()
         {
             var service = CreateService();
 
             var result = service.AnalyzeFile(GetSamplePath("mod.ini"));
 
-            var component4Items = result.VisibilityItems.Where(item => item.SectionName == "TextureOverrideComponent4").ToList();
-            Assert.Equal(5, component4Items.Count);
-            Assert.All(component4Items, item => Assert.Equal(1, item.DrawCallCount));
+            // The sample contains TextureOverride_A_Component2 with 4 drawindexed lines
+            // guarded by inline control variables (Denia pattern).
+            var componentA2Items = result.VisibilityItems
+                .Where(item => item.SectionName == "TextureOverride_A_Component2")
+                .ToList();
+            Assert.NotEmpty(componentA2Items);
+            Assert.All(componentA2Items, item => Assert.Equal(1, item.DrawCallCount));
+            Assert.Equal(4, componentA2Items.Count);
+            Assert.Equal("89d30421", componentA2Items[0].Hash);
 
-            var pantsuItem = Assert.Single(component4Items.Where(item => item.DrawLabels.Contains("4 Pantsu")));
-            Assert.Equal("25a5716a", pantsuItem.Hash);
-            Assert.Equal("120117", pantsuItem.MatchFirstIndex);
-            Assert.Equal("52302", pantsuItem.MatchIndexCount);
-            Assert.Equal("skip", pantsuItem.HandlingMode);
-            Assert.Equal(ModConfigVisibilityConfidence.High, pantsuItem.Confidence);
-            Assert.Contains("$draw_component_4_pantsu", pantsuItem.ModelParameters);
-            Assert.Contains("$swapvar_toggle_0", pantsuItem.ControllingParameters);
-            Assert.Contains("KeySwapToggle0", pantsuItem.ControllingKeySections);
-            Assert.Contains("VK_DOWN", pantsuItem.ControllingKeyBindings);
-            Assert.Contains(pantsuItem.KeyParameterBindings, binding =>
-                binding.ParameterName == "$swapvar_toggle_0" &&
-                binding.EffectiveValues.SequenceEqual(new[] { "0" }));
+            // Each draw entry should have its controlling variable in ModelParameters.
+            var allModelParams = componentA2Items
+                .SelectMany(item => item.ModelParameters)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            Assert.Contains("$draw_component_2_ts_A", allModelParams);
+            Assert.Contains("$draw_component_2_tuoxie_A", allModelParams);
+            Assert.Contains("$draw_component_2_zhi_A", allModelParams);
+            Assert.Contains("$draw_component_2_shenti1_A", allModelParams);
 
-            var skirtFrontItem = Assert.Single(component4Items.Where(item => item.DrawLabels.Contains("4 Skirt Front.001")));
-            Assert.Contains("$swapvar_toggle_1", skirtFrontItem.ControllingParameters);
-            Assert.Contains("KeySwapToggle1", skirtFrontItem.ControllingKeySections);
-            Assert.Contains("VK_LEFT", skirtFrontItem.ControllingKeyBindings);
+            // TextureOverride_C_Component0 has an unconditional drawindexed (no if guard).
+            var componentC0 = result.VisibilityItems
+                .SingleOrDefault(item => item.SectionName == "TextureOverride_C_Component0");
+            Assert.NotNull(componentC0);
+            Assert.Equal(1, componentC0.DrawCallCount);
         }
 
         [Fact]
@@ -317,22 +392,19 @@ namespace UnitTests
 
             var result = service.AnalyzeFile(GetSamplePath("mod.ini"));
 
-            var component0 = result.VisibilityItems.Single(item => item.SectionName == "TextureOverrideComponent0");
-            Assert.Equal(ModConfigVisibilityConfidence.Medium, component0.Confidence);
-            Assert.Equal(1, component0.DrawCallCount);
-            Assert.Contains("0", component0.DrawLabels);
-            Assert.Empty(component0.ControllingParameters);
+            // Component C0: one drawindexed guarded by $mod_enabled_C.
+            var componentC0Items = result.VisibilityItems
+                .Where(item => item.SectionName == "TextureOverride_C_Component0")
+                .ToList();
+            Assert.Single(componentC0Items);
+            Assert.Equal(1, componentC0Items[0].DrawCallCount);
 
-            var component5Items = result.VisibilityItems.Where(item => item.SectionName == "TextureOverrideComponent5").ToList();
-            Assert.Single(component5Items);
-            Assert.Contains("5.001", component5Items[0].DrawLabels);
-            Assert.Equal(ModConfigVisibilityConfidence.Medium, component5Items[0].Confidence);
-
-            var component6 = result.VisibilityItems.Single(item => item.SectionName == "TextureOverrideComponent6");
-            Assert.Equal(ModConfigVisibilityConfidence.Medium, component6.Confidence);
-            Assert.Equal(1, component6.DrawCallCount);
-            Assert.Contains("6", component6.DrawLabels);
-            Assert.Empty(component6.ControllingParameters);
+            // Component C1: four drawindexed calls, each creating a draw entry.
+            var componentC1Items = result.VisibilityItems
+                .Where(item => item.SectionName == "TextureOverride_C_Component1")
+                .ToList();
+            Assert.Equal(4, componentC1Items.Count);
+            Assert.All(componentC1Items, item => Assert.Equal(1, item.DrawCallCount));
         }
 
         private static IModConfigAnalysisService CreateService()

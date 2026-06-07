@@ -517,7 +517,7 @@ namespace UnitTests
         }
 
         [Fact]
-        public void StandardizeToggleSlots_ShouldSkipNonBinaryCycleToggles()
+        public void StandardizeToggleSlots_ShouldForceKeyBindingsForNonBinaryCycleToggles()
         {
             var service = CreateService();
             var filePath = CreateTempConfig(
@@ -544,10 +544,11 @@ namespace UnitTests
                 var result = service.StandardizeToggleSlots(service.LoadBuffer(filePath), templatePath);
 
                 Assert.Equal(0, result.FullyStandardizedCount);
-                Assert.Equal(0, result.PartiallyStandardizedCount);
-                Assert.Equal(1, result.SkippedCount);
-                Assert.Equal(service.LoadBuffer(filePath).Content, result.Buffer.Content);
-                Assert.Empty(result.Buffer.AppliedChanges);
+                Assert.Equal(1, result.PartiallyStandardizedCount);
+                Assert.Equal(0, result.SkippedCount);
+                Assert.NotEqual(service.LoadBuffer(filePath).Content, result.Buffer.Content);
+                Assert.NotEmpty(result.Buffer.AppliedChanges);
+                Assert.Contains("NO_CTRL NO_ALT NO_SHIFT NUMPAD1", result.Buffer.Content);
             }
             finally
             {

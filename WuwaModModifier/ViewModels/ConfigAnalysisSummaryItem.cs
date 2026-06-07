@@ -228,6 +228,18 @@ namespace WuwaModModifier.ViewModels
         AutoApplicableOnly
     }
 
+    public class ConfigVisibilityBindingRemovalCandidate
+    {
+        public string ParameterName { get; set; } = string.Empty;
+        public string KeyBindingsText { get; set; } = string.Empty;
+        public string KeySectionName { get; set; } = string.Empty;
+        public string DisplayText =>
+            string.IsNullOrWhiteSpace(KeyBindingsText)
+                ? $"{ParameterName} → {KeySectionName}"
+                : $"{ParameterName} → {KeyBindingsText} ({KeySectionName})";
+        public string VisibilityBindingDisplayText => DisplayText;
+    }
+
     public class VersionSyncJobSummaryItem : ViewModelBase
     {
         private int _differenceCount;

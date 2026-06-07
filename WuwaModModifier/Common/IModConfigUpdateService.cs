@@ -18,6 +18,7 @@ namespace WuwaModModifier.Common
         ModConfigEditBuffer ToggleVisibility(ModConfigEditBuffer buffer, string componentSectionName, string drawLabel, bool isVisible);
         ModConfigEditBuffer BindVisibilityToParameter(ModConfigEditBuffer buffer, string componentSectionName, string drawLabel, string variableName);
         ModConfigEditBuffer CreateVisibilityBinding(ModConfigEditBuffer buffer, string componentSectionName, string drawLabel, string variableName, IReadOnlyList<string> keyBindings);
+        ModConfigEditBuffer RemoveVisibilityBinding(ModConfigEditBuffer buffer, string componentSectionName, string drawLabel, string variableName);
         ModConfigSaveResult SaveBuffer(ModConfigEditBuffer buffer, string targetPath);
         ModConfigSaveResult SaveBufferToTarget(ModConfigEditBuffer buffer, ModConfigSaveTarget saveTarget, string modRootPath, string wwmiRootPath);
         ModConfigSyncResult SyncConfig(string configPath, ModConfigSyncDirection direction, string modRootPath, string wwmiRootPath);

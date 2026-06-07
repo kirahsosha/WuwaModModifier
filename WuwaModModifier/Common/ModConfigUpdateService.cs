@@ -118,48 +118,97 @@ namespace WuwaModModifier.Common
             var fullCount = 0;
             var partialCount = 0;
             var skippedCount = 0;
-            var slotIndex = 0;
+            var nextSlotIndex = 0;
+            var usedSlotIndices = new HashSet<int>();
             var items = new List<ModConfigStandardizationItemResult>();
+
+            // Build lookup from standard variable name to slot index for stable matching.
+            var slotIndexByVariable = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < slots.Count; i++)
+            {
+                if (!string.IsNullOrWhiteSpace(slots[i].VariableName))
+                {
+                    slotIndexByVariable[slots[i].VariableName] = i;
+                }
+            }
 
             foreach (var section in orderedKeySections)
             {
                 var toggle = analysis.Toggles.FirstOrDefault(item =>
                     item.SectionName.Equals(section.Name, StringComparison.OrdinalIgnoreCase));
-                if (toggle == null || !TryGetStandardizationTarget(toggle, analysis.Parameters, out var currentVariableName, out var canRename))
+                var currentVariableName = string.Empty;
+                var canRename = false;
+                var isStandardizationCandidate = toggle != null &&
+                    TryGetStandardizationTarget(toggle, analysis.Parameters, out currentVariableName, out canRename);
+
+                // For non-candidate sections, try to extract the primary variable name.
+                if (!isStandardizationCandidate)
                 {
-                    skippedCount++;
-                    items.Add(new ModConfigStandardizationItemResult
-                    {
-                        OriginalSectionName = section.Name,
-                        FinalSectionName = section.Name,
-                        Status = ModConfigStandardizationStatus.Skipped,
-                        Reason = "不属于可安全标准化的二值 cycle 槽位。"
-                    });
-                    continue;
+                    currentVariableName = toggle?.Targets.FirstOrDefault()?.VariableName ?? string.Empty;
                 }
 
-                if (slotIndex >= slots.Count)
+                // Resolve slot: stable match by variable name first, then sequential.
+                int slotIndex;
+                if (!string.IsNullOrWhiteSpace(currentVariableName) &&
+                    slotIndexByVariable.TryGetValue(currentVariableName, out var matchedIndex) &&
+                    !usedSlotIndices.Contains(matchedIndex))
                 {
-                    skippedCount++;
+                    slotIndex = matchedIndex;
+                }
+                else
+                {
+                    while (nextSlotIndex < slots.Count && usedSlotIndices.Contains(nextSlotIndex))
+                    {
+                        nextSlotIndex++;
+                    }
+
+                    if (nextSlotIndex >= slots.Count)
+                    {
+                        skippedCount++;
+                        items.Add(new ModConfigStandardizationItemResult
+                        {
+                            OriginalSectionName = section.Name,
+                            FinalSectionName = section.Name,
+                            OriginalVariableName = currentVariableName,
+                            FinalVariableName = currentVariableName,
+                            Status = ModConfigStandardizationStatus.Skipped,
+                            Reason = "标准模板槽位不足。"
+                        });
+                        continue;
+                    }
+
+                    slotIndex = nextSlotIndex++;
+                }
+
+                usedSlotIndices.Add(slotIndex);
+                var slot = slots[slotIndex];
+                var originalSectionName = section.Name;
+                ApplyKeyBindingsToSection(section, slot.KeyBindings);
+
+                // Re-analyze after modifying key bindings so downstream checks see current state.
+                analysis = _analysisService.Analyze(document);
+
+                if (!isStandardizationCandidate)
+                {
+                    // Force key binding update for non-standard sections without renaming.
+                    partialCount++;
                     items.Add(new ModConfigStandardizationItemResult
                     {
-                        OriginalSectionName = section.Name,
+                        OriginalSectionName = originalSectionName,
                         FinalSectionName = section.Name,
                         OriginalVariableName = currentVariableName,
                         FinalVariableName = currentVariableName,
-                        Status = ModConfigStandardizationStatus.Skipped,
-                        Reason = "标准模板槽位不足。"
+                        TargetKeyBindings = slot.KeyBindings.ToList(),
+                        Status = ModConfigStandardizationStatus.PartiallyStandardized,
+                        Reason = "不属于可安全重命名的二值 cycle 槽位，快捷键已强制对齐模板。"
                     });
                     continue;
                 }
-
-                var slot = slots[slotIndex++];
-                var originalSectionName = section.Name;
-                ApplyKeyBindingsToSection(section, slot.KeyBindings);
 
                 if (currentVariableName.Equals(slot.VariableName, StringComparison.OrdinalIgnoreCase))
                 {
                     RenameSection(section, slot.SectionName);
+                    analysis = _analysisService.Analyze(document);
                     fullCount++;
                     items.Add(new ModConfigStandardizationItemResult
                     {
@@ -171,7 +220,6 @@ namespace WuwaModModifier.Common
                         Status = ModConfigStandardizationStatus.FullyStandardized,
                         Reason = "变量名已符合模板，仅对齐节名与快捷键。"
                     });
-                    analysis = _analysisService.Analyze(document);
                     continue;
                 }
 
@@ -183,6 +231,7 @@ namespace WuwaModModifier.Common
                 {
                     ReplaceVariableTokensInDocument(document, currentVariableName, slot.VariableName);
                     RenameSection(section, slot.SectionName);
+                    analysis = _analysisService.Analyze(document);
                     fullCount++;
                     items.Add(new ModConfigStandardizationItemResult
                     {
@@ -211,8 +260,6 @@ namespace WuwaModModifier.Common
                             : "变量重命名风险过高，仅对齐快捷键。"
                     });
                 }
-
-                analysis = _analysisService.Analyze(document);
             }
 
             return new ModConfigStandardizationResult
@@ -596,6 +643,46 @@ namespace WuwaModModifier.Common
             }
 
             return CreateUpdatedBuffer(buffer, document, $"为 {componentSectionName} / {drawLabel} 新建参数 {variableName} 与快捷键绑定");
+        }
+
+        public ModConfigEditBuffer RemoveVisibilityBinding(
+            ModConfigEditBuffer buffer,
+            string componentSectionName,
+            string drawLabel,
+            string variableName)
+        {
+            if (string.IsNullOrWhiteSpace(componentSectionName))
+            {
+                throw new ArgumentException("组件节名不能为空。", nameof(componentSectionName));
+            }
+
+            if (string.IsNullOrWhiteSpace(drawLabel))
+            {
+                throw new ArgumentException("模型显示标签不能为空。", nameof(drawLabel));
+            }
+
+            if (string.IsNullOrWhiteSpace(variableName))
+            {
+                throw new ArgumentException("参数名不能为空。", nameof(variableName));
+            }
+
+            var document = ParseBuffer(buffer);
+            var analysis = _analysisService.Analyze(document);
+            var visibilityItem = FindVisibilityItem(analysis, componentSectionName, drawLabel);
+
+            if (!visibilityItem.ControllingParameters.Contains(variableName, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"参数 {variableName} 不直接控制该模型显示项。");
+            }
+
+            var drawTarget = FindDrawTargetInfo(document, componentSectionName, drawLabel);
+            if (drawTarget == null)
+            {
+                throw new InvalidOperationException("未找到模型显示项的控制表达式。");
+            }
+
+            UnwrapVisibilityBinding(drawTarget, variableName);
+            return CreateUpdatedBuffer(buffer, document, $"移除 {componentSectionName} / {drawLabel} 对 {variableName} 的控制绑定");
         }
 
         public ModConfigSaveResult SaveBuffer(ModConfigEditBuffer buffer, string targetPath)
@@ -1329,6 +1416,74 @@ namespace WuwaModModifier.Common
 
             section.Statements.RemoveAt(endIndex);
             section.Statements.RemoveAt(startIndex);
+        }
+
+        private static void UnwrapVisibilityBinding(DrawTargetInfo drawTarget, string variableName)
+        {
+            var wrapper = FindVisibilityConditionWrapper(drawTarget, variableName);
+            if (wrapper == null)
+            {
+                throw new InvalidOperationException($"未找到参数 {variableName} 的控制块。");
+            }
+
+            var section = wrapper.Section;
+            var startIndex = wrapper.StatementIndex;
+            var endIndex = FindMatchingEndIfIndex(section, startIndex);
+            var outerIndent = GetIndentation(section.Statements[startIndex].RawText);
+            var innerIndent = outerIndent + "    ";
+
+            for (var index = startIndex + 1; index < endIndex; index++)
+            {
+                var statement = section.Statements[index];
+                if (statement.Kind == ModConfigStatementKind.BlankLine)
+                {
+                    continue;
+                }
+
+                if (statement.RawText.StartsWith(innerIndent, StringComparison.Ordinal))
+                {
+                    statement.RawText = outerIndent + statement.RawText.Substring(innerIndent.Length);
+                }
+            }
+
+            section.Statements.RemoveAt(endIndex);
+            section.Statements.RemoveAt(startIndex);
+        }
+
+        private static ControlLineTarget? FindVisibilityConditionWrapper(DrawTargetInfo drawTarget, string variableName)
+        {
+            var count = Math.Min(drawTarget.ControlExpressions.Count, drawTarget.ControlLineTargets.Count);
+            for (var index = count - 1; index >= 0; index--)
+            {
+                var controlLineTarget = drawTarget.ControlLineTargets[index];
+                if (!ReferenceEquals(controlLineTarget.Section, drawTarget.Section))
+                {
+                    continue;
+                }
+
+                var expression = drawTarget.ControlExpressions[index];
+                if (IsVisibilityConditionExpression(expression, variableName))
+                {
+                    return controlLineTarget;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool IsVisibilityConditionExpression(string expression, string variableName)
+        {
+            if (string.IsNullOrWhiteSpace(expression))
+            {
+                return false;
+            }
+
+            var trimmed = expression.Trim();
+            return trimmed.Equals($"{variableName} == 1", StringComparison.OrdinalIgnoreCase) ||
+                   trimmed.Equals($"{variableName}==1", StringComparison.OrdinalIgnoreCase) ||
+                   trimmed.Equals(variableName, StringComparison.OrdinalIgnoreCase) ||
+                   (trimmed.StartsWith(variableName, StringComparison.OrdinalIgnoreCase) &&
+                    trimmed.EndsWith("== 1", StringComparison.OrdinalIgnoreCase));
         }
 
         private static bool CanToggleVisibilityDirectly(ModVisibilityItem visibilityItem)

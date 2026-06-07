@@ -18,7 +18,8 @@ namespace WuwaModModifier.ViewModels
         {
             ExistingParameter,
             ExistingToggle,
-            NewParameterAndToggle
+            NewParameterAndToggle,
+            RemoveExistingBinding
         }
 
         private enum ToggleCreationMode
@@ -60,6 +61,7 @@ namespace WuwaModModifier.ViewModels
         private ObservableCollection<ConfigParameterSummaryItem> _toggleCreationParameterCandidates;
         private ObservableCollection<ConfigParameterSummaryItem> _visibilityBindingParameterCandidates;
         private ObservableCollection<ConfigToggleSummaryItem> _visibilityBindingToggleCandidates;
+        private ObservableCollection<ConfigVisibilityBindingRemovalCandidate> _visibilityBindingRemovalCandidates;
         private ObservableCollection<string> _visibilityBindingAvailableKeyOptions;
         private ObservableCollection<ConfigStandardizationSummaryItem> _latestStandardizationItems;
         private ObservableCollection<ConfigModificationHistoryItem> _modificationHistoryItems;
@@ -69,7 +71,7 @@ namespace WuwaModModifier.ViewModels
         private ConfigParameterSummaryItem? _selectedParameterItem;
         private ConfigVisibilitySummaryItem? _selectedVisibilityItem;
         private ConfigParameterSummaryItem? _selectedToggleCreationParameter;
-        private ConfigParameterSummaryItem? _selectedVisibilityBindingParameter;
+        private object? _selectedVisibilityBindingParameter;
         private ConfigToggleSummaryItem? _selectedVisibilityBindingToggle;
         private string _toggleKeyBindingEditorText;
         private string _toggleCreationNewParameterName;
@@ -147,6 +149,7 @@ namespace WuwaModModifier.ViewModels
             _toggleCreationParameterCandidates = new ObservableCollection<ConfigParameterSummaryItem>();
             _visibilityBindingParameterCandidates = new ObservableCollection<ConfigParameterSummaryItem>();
             _visibilityBindingToggleCandidates = new ObservableCollection<ConfigToggleSummaryItem>();
+            _visibilityBindingRemovalCandidates = new ObservableCollection<ConfigVisibilityBindingRemovalCandidate>();
             _visibilityBindingAvailableKeyOptions = new ObservableCollection<string>();
             _latestStandardizationItems = new ObservableCollection<ConfigStandardizationSummaryItem>();
             _modificationHistoryItems = new ObservableCollection<ConfigModificationHistoryItem>();
@@ -518,7 +521,7 @@ namespace WuwaModModifier.ViewModels
             }
         }
 
-        public ConfigParameterSummaryItem? SelectedVisibilityBindingParameter
+        public object? SelectedVisibilityBindingParameter
         {
             get => _selectedVisibilityBindingParameter;
             set
@@ -724,6 +727,27 @@ namespace WuwaModModifier.ViewModels
                 }
             }
         }
+
+        public bool UseRemoveExistingVisibilityBinding
+        {
+            get => _selectedVisibilityBindingMode == VisibilityBindingMode.RemoveExistingBinding;
+            set
+            {
+                if (value)
+                {
+                    SetVisibilityBindingMode(VisibilityBindingMode.RemoveExistingBinding);
+                }
+            }
+        }
+
+        public bool CanRemoveExistingVisibilityBinding =>
+            SelectedVisibilityItem != null &&
+            SelectedVisibilityItem.DrawCallCount > 0 &&
+            (SelectedVisibilityItem.ControllingParametersText?.Length > 0 ||
+             SelectedVisibilityItem.ControllingKeyBindingsText?.Length > 0);
+
+        public ObservableCollection<ConfigVisibilityBindingRemovalCandidate> VisibilityBindingRemovalCandidates =>
+            _visibilityBindingRemovalCandidates;
 
         public ICommand BtnModPathCommand { get; }
         public ICommand BtnWwmiPathCommand { get; }
@@ -1259,7 +1283,7 @@ namespace WuwaModModifier.ViewModels
 
         private void RefreshVisibilityBindingCandidates()
         {
-            var currentParameterName = _selectedVisibilityBindingParameter?.Name;
+            var currentParameterName = (_selectedVisibilityBindingParameter as ConfigParameterSummaryItem)?.Name;
             var currentToggleSection = _selectedVisibilityBindingToggle?.SectionName;
 
             ReplaceCollection(
@@ -1279,9 +1303,43 @@ namespace WuwaModModifier.ViewModels
                 : _visibilityBindingToggleCandidates.FirstOrDefault();
         }
 
+        private void RefreshVisibilityBindingRemovalCandidates()
+        {
+            var candidates = new List<ConfigVisibilityBindingRemovalCandidate>();
+
+            if (SelectedVisibilityItem != null)
+            {
+                var controllingParams = (SelectedVisibilityItem.ControllingParametersText ?? string.Empty)
+                    .Split(new[] { " | " }, StringSplitOptions.RemoveEmptyEntries);
+                var controllingKeyBindings = (SelectedVisibilityItem.ControllingKeyBindingsText ?? string.Empty)
+                    .Split(new[] { " | " }, StringSplitOptions.RemoveEmptyEntries);
+
+                for (var i = 0; i < controllingParams.Length; i++)
+                {
+                    var paramName = controllingParams[i].Trim();
+                    if (string.IsNullOrWhiteSpace(paramName))
+                    {
+                        continue;
+                    }
+
+                    candidates.Add(new ConfigVisibilityBindingRemovalCandidate
+                    {
+                        ParameterName = paramName,
+                        KeyBindingsText = i < controllingKeyBindings.Length
+                            ? controllingKeyBindings[i].Trim()
+                            : string.Empty,
+                        KeySectionName = string.Empty
+                    });
+                }
+            }
+
+            ReplaceCollection(_visibilityBindingRemovalCandidates, candidates);
+        }
+
         private void ResetVisibilityBindingSelectionState()
         {
             RefreshVisibilityBindingCandidates();
+            RefreshVisibilityBindingRemovalCandidates();
             RefreshSharedAvailableKeyOptions();
             VisibilityBindingNewParameterName = string.Empty;
             VisibilityBindingNewKeyBindingsText = string.Empty;
@@ -1289,11 +1347,17 @@ namespace WuwaModModifier.ViewModels
             ApplyVisibilityBindingDefaults(force: true);
             OnPropertyChanged(nameof(CanBindSelectedVisibilityItem));
             OnPropertyChanged(nameof(CanCreateNewVisibilityBinding));
+            OnPropertyChanged(nameof(CanRemoveExistingVisibilityBinding));
             OnPropertyChanged(nameof(VisibilityBindingStatusText));
         }
 
         private VisibilityBindingMode DeterminePreferredVisibilityBindingMode()
         {
+            if (CanRemoveExistingVisibilityBinding && _visibilityBindingRemovalCandidates.Count > 0)
+            {
+                return VisibilityBindingMode.RemoveExistingBinding;
+            }
+
             if (CanBindSelectedVisibilityItem)
             {
                 if (_visibilityBindingParameterCandidates.Count > 0)
@@ -1345,10 +1409,22 @@ namespace WuwaModModifier.ViewModels
                 return;
             }
 
+            var previousMode = _selectedVisibilityBindingMode;
             _selectedVisibilityBindingMode = mode;
             OnPropertyChanged(nameof(UseExistingVisibilityParameterBinding));
             OnPropertyChanged(nameof(UseExistingVisibilityToggleBinding));
             OnPropertyChanged(nameof(UseNewVisibilityBinding));
+            OnPropertyChanged(nameof(UseRemoveExistingVisibilityBinding));
+
+            if (mode == VisibilityBindingMode.RemoveExistingBinding)
+            {
+                SelectedVisibilityBindingParameter = _visibilityBindingRemovalCandidates.FirstOrDefault();
+            }
+            else if (previousMode == VisibilityBindingMode.RemoveExistingBinding)
+            {
+                SelectedVisibilityBindingParameter = _visibilityBindingParameterCandidates.FirstOrDefault();
+            }
+
             ApplyVisibilityBindingDefaults(force: false);
             CommandManager.InvalidateRequerySuggested();
         }
@@ -1958,7 +2034,7 @@ namespace WuwaModModifier.ViewModels
                 switch (_selectedVisibilityBindingMode)
                 {
                     case VisibilityBindingMode.ExistingParameter:
-                        if (SelectedVisibilityBindingParameter == null)
+                        if (SelectedVisibilityBindingParameter is not ConfigParameterSummaryItem parameter)
                         {
                             return;
                         }
@@ -1967,8 +2043,8 @@ namespace WuwaModModifier.ViewModels
                             _selectedConfigBuffer,
                             sectionName,
                             drawLabelsText,
-                            SelectedVisibilityBindingParameter.Name);
-                        historySummary = $"绑定到现有参数 {SelectedVisibilityBindingParameter.Name}。";
+                            parameter.Name);
+                        historySummary = $"绑定到现有参数 {parameter.Name}。";
                         break;
 
                     case VisibilityBindingMode.ExistingToggle:
@@ -1996,6 +2072,20 @@ namespace WuwaModModifier.ViewModels
                             newVariableName,
                             newKeyBindings);
                         historySummary = $"新建参数 {newVariableName} 与快捷键 {string.Join(" | ", newKeyBindings)}。";
+                        break;
+
+                    case VisibilityBindingMode.RemoveExistingBinding:
+                        if (SelectedVisibilityBindingParameter is not ConfigVisibilityBindingRemovalCandidate removal)
+                        {
+                            return;
+                        }
+
+                        updatedBuffer = _configUpdateService.RemoveVisibilityBinding(
+                            _selectedConfigBuffer,
+                            sectionName,
+                            drawLabelsText,
+                            removal.ParameterName);
+                        historySummary = $"移除 {removal.ParameterName} 的控制绑定。";
                         break;
                 }
 
@@ -2028,10 +2118,13 @@ namespace WuwaModModifier.ViewModels
 
             return _selectedVisibilityBindingMode switch
             {
-                VisibilityBindingMode.ExistingParameter => CanBindSelectedVisibilityItem && SelectedVisibilityBindingParameter != null,
+                VisibilityBindingMode.ExistingParameter => CanBindSelectedVisibilityItem &&
+                    SelectedVisibilityBindingParameter is ConfigParameterSummaryItem,
                 VisibilityBindingMode.ExistingToggle => SelectedVisibilityBindingToggle != null &&
                     !string.IsNullOrWhiteSpace(SelectedVisibilityBindingToggle.PrimaryVariableName) &&
                     CanBindSelectedVisibilityItem,
+                VisibilityBindingMode.RemoveExistingBinding => CanRemoveExistingVisibilityBinding &&
+                    SelectedVisibilityBindingParameter is ConfigVisibilityBindingRemovalCandidate,
                 _ => CanCreateNewVisibilityBinding &&
                     !string.IsNullOrWhiteSpace(NormalizeVariableName(VisibilityBindingNewParameterName)) &&
                     SplitEditorValues(VisibilityBindingNewKeyBindingsText).Count > 0
@@ -2257,9 +2350,13 @@ namespace WuwaModModifier.ViewModels
             }
 
             var nextSource = GetAlternateConfigSource(_selectedConfigSource);
-            if (!TryResolveConfigPathForSource(SelectedDirectoryItem, nextSource, out _))
+            var preferredPath = SelectedConfigCandidatePath;
+            if (!TryResolveConfigPathForSource(SelectedDirectoryItem, nextSource, out _, preferredPath))
             {
-                return;
+                if (!TryResolveConfigPathForSource(SelectedDirectoryItem, nextSource, out _))
+                {
+                    return;
+                }
             }
 
             SetSelectedConfigSource(nextSource);

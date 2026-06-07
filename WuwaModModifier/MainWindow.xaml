@@ -1154,9 +1154,13 @@
                                                              Content="现有按键"
                                                              IsChecked="{Binding UseExistingVisibilityToggleBinding}"
                                                              IsEnabled="{Binding CanBindSelectedVisibilityItem}"/>
-                                                <RadioButton Content="新建参数+按键"
+                                                <RadioButton Margin="0,0,14,0"
+                                                             Content="新建参数+按键"
                                                              IsChecked="{Binding UseNewVisibilityBinding}"
                                                              IsEnabled="{Binding CanCreateNewVisibilityBinding}"/>
+                                                <RadioButton Content="移除现有参数+按键"
+                                                             IsChecked="{Binding UseRemoveExistingVisibilityBinding}"
+                                                             IsEnabled="{Binding CanRemoveExistingVisibilityBinding}"/>
                                             </StackPanel>
 
                                             <Grid Margin="0,8,0,0">
@@ -1167,10 +1171,27 @@
                                                 </Grid.ColumnDefinitions>
 
                                                 <ComboBox Grid.Column="0"
-                                                          ItemsSource="{Binding VisibilityBindingParameterCandidates}"
-                                                          SelectedItem="{Binding SelectedVisibilityBindingParameter, Mode=TwoWay}"
                                                           DisplayMemberPath="VisibilityBindingDisplayText"
-                                                          IsEnabled="{Binding UseExistingVisibilityParameterBinding}"/>
+                                                          SelectedItem="{Binding SelectedVisibilityBindingParameter, Mode=TwoWay}">
+                                                    <ComboBox.Style>
+                                                        <Style TargetType="ComboBox"
+                                                                BasedOn="{StaticResource {x:Type ComboBox}}">
+                                                            <Setter Property="ItemsSource"
+                                                                    Value="{Binding VisibilityBindingParameterCandidates}"/>
+                                                            <Setter Property="IsEnabled"
+                                                                    Value="{Binding UseExistingVisibilityParameterBinding}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding UseRemoveExistingVisibilityBinding}"
+                                                                        Value="True">
+                                                                    <Setter Property="ItemsSource"
+                                                                            Value="{Binding VisibilityBindingRemovalCandidates}"/>
+                                                                    <Setter Property="IsEnabled"
+                                                                            Value="True"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </ComboBox.Style>
+                                                </ComboBox>
 
                                                 <ComboBox Grid.Column="2"
                                                           ItemsSource="{Binding VisibilityBindingToggleCandidates}"

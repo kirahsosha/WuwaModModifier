@@ -258,6 +258,7 @@ namespace WuwaModModifier.Common
                 variableName.StartsWith("$mesh_", StringComparison.OrdinalIgnoreCase) ||
                 variableName.StartsWith("$shapekey_", StringComparison.OrdinalIgnoreCase) ||
                 variableName.StartsWith("$merge_status", StringComparison.OrdinalIgnoreCase) ||
+                variableName.IndexOf("\\WWMIv1\\", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 variableName.Equals("$mod_id", StringComparison.OrdinalIgnoreCase) ||
                 variableName.Equals("$state_id", StringComparison.OrdinalIgnoreCase) ||
                 variableName.Equals("$mod_enabled", StringComparison.OrdinalIgnoreCase);
@@ -274,7 +275,7 @@ namespace WuwaModModifier.Common
                 .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
             return document.Sections
-                .Where(section => section.Name.StartsWith("TextureOverrideComponent", StringComparison.OrdinalIgnoreCase))
+                .Where(section => section.Name.StartsWith("TextureOverride", StringComparison.OrdinalIgnoreCase))
                 .SelectMany(section => BuildVisibilityItems(section, sectionLookup, parameterLookup, variableDependencyGraph, variableExpressionsByVariable))
                 .OrderBy(item => item.SectionName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
@@ -369,8 +370,11 @@ namespace WuwaModModifier.Common
             IReadOnlyDictionary<string, IReadOnlyList<string>> variableDependencyGraph)
         {
             var relatedSections = CollectRelatedSections(componentSection, sectionLookup);
+            var referencedVariables = relatedSections.SelectMany(GetReferencedVariables)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
             var controllingParameters = ResolveControllingParameters(
-                relatedSections.SelectMany(GetReferencedVariables),
+                referencedVariables,
                 parameterLookup,
                 variableDependencyGraph);
             var controllingKeySections = controllingParameters
@@ -383,6 +387,7 @@ namespace WuwaModModifier.Common
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+            var modelParameters = ResolveModelParameters(referencedVariables, parameterLookup);
 
             return new ModVisibilityItem
             {
@@ -403,6 +408,7 @@ namespace WuwaModModifier.Common
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
                     .ToList(),
+                ModelParameters = modelParameters,
                 ControllingParameters = controllingParameters,
                 ControllingKeySections = controllingKeySections,
                 ControllingKeyBindings = controllingKeyBindings,
@@ -822,9 +828,22 @@ namespace WuwaModModifier.Common
         {
             return candidateVariables
                 .Where(variableName =>
-                    parameterLookup.TryGetValue(variableName, out var parameter) &&
-                    parameter.BoundKeySections.Count == 0 &&
-                    !IsInternalSystemVariable(variableName))
+                {
+                    if (IsInternalSystemVariable(variableName))
+                    {
+                        return false;
+                    }
+
+                    if (!parameterLookup.TryGetValue(variableName, out var parameter))
+                    {
+                        // Variable not tracked in early analysis (e.g. only appears in if
+                        // conditions inside TextureOverrideComponent). Treat it as a model
+                        // parameter so the UI can still surface it.
+                        return true;
+                    }
+
+                    return parameter.BoundKeySections.Count == 0;
+                })
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(variableName => variableName, StringComparer.OrdinalIgnoreCase)
                 .ToList();
