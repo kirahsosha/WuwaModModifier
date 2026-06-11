@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using WuwaModModifier.Model;
 
 namespace WuwaModModifier.Common
@@ -833,6 +834,13 @@ namespace WuwaModModifier.Common
                     .Where(candidate => candidate.NormalizedNameKey.Equals(exactKey, StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
+                if (IsSameModMultiVariant(exactOldCandidates.Concat(exactNewCandidates).ToList()))
+                {
+                    remainingOldCandidates.RemoveAll(candidate => candidate.NormalizedNameKey.Equals(exactKey, StringComparison.OrdinalIgnoreCase));
+                    remainingNewCandidates.RemoveAll(candidate => candidate.NormalizedNameKey.Equals(exactKey, StringComparison.OrdinalIgnoreCase));
+                    continue;
+                }
+
                 jobs.AddRange(CreateJobsForMatchedCandidates(exactOldCandidates, exactNewCandidates, ref sequence));
                 remainingOldCandidates.RemoveAll(candidate => candidate.NormalizedNameKey.Equals(exactKey, StringComparison.OrdinalIgnoreCase));
                 remainingNewCandidates.RemoveAll(candidate => candidate.NormalizedNameKey.Equals(exactKey, StringComparison.OrdinalIgnoreCase));
@@ -866,6 +874,11 @@ namespace WuwaModModifier.Common
                 }
 
                 var groupedCandidates = exactGroup.ToList();
+                if (IsSameModMultiVariant(groupedCandidates))
+                {
+                    continue;
+                }
+
                 jobs.AddRange(CreateSingleDirectoryExactKeyJobs(groupedCandidates, ref sequence));
 
                 var groupedPaths = groupedCandidates
@@ -1103,6 +1116,50 @@ namespace WuwaModModifier.Common
 
             return jobs;
         }
+
+        /// <summary>
+        /// Same-hash candidates whose ModName differs only by _vN suffix are
+        /// multi-variant configs of the same mod, not version-sync pairs.
+        /// </summary>
+        private static bool IsSameModMultiVariant(IReadOnlyList<VersionSyncFolderCandidate> candidates)
+        {
+            if (candidates.Count < 2)
+            {
+                return false;
+            }
+
+            var firstId = candidates[0].Id;
+            if (string.IsNullOrWhiteSpace(firstId) ||
+                !candidates.All(candidate => string.Equals(candidate.Id, firstId, StringComparison.OrdinalIgnoreCase)))
+            {
+                return false;
+            }
+
+            var versionStripped = candidates
+                .Select(candidate => StripTrailingVersionSuffix(candidate.ModName))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return versionStripped.Count == 1;
+        }
+
+        private static string StripTrailingVersionSuffix(string modName)
+        {
+            if (string.IsNullOrWhiteSpace(modName))
+            {
+                return string.Empty;
+            }
+
+            var updated = TrailingVersionSuffixRegex.Replace(modName, string.Empty);
+            updated = TrailingVerSuffixRegex.Replace(updated, string.Empty);
+            return updated.TrimEnd('_');
+        }
+
+        private static readonly Regex TrailingVersionSuffixRegex =
+            new Regex(@"(?:_v\d+)+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static readonly Regex TrailingVerSuffixRegex =
+            new Regex(@"(?:_ver\d+)+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private static int CalculatePairingScore(
             VersionSyncFolderCandidate oldCandidate,

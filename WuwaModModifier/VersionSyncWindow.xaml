@@ -364,6 +364,9 @@
                               PreviewMouseRightButtonDown="PairingJobsGrid_PreviewMouseRightButtonDown">
                         <DataGrid.ContextMenu>
                             <ContextMenu>
+                                <MenuItem Header="交换配对"
+                                          Command="{Binding PlacementTarget.DataContext.SwapSelectedPairingCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                <Separator/>
                                 <MenuItem Header="删除配对"
                                           Command="{Binding PlacementTarget.DataContext.DeleteSelectedPairingCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                             </ContextMenu>

@@ -769,7 +769,7 @@
                                                 <CheckBox IsChecked="{Binding IsChecked}"
                                                           VerticalAlignment="Center"
                                                           Margin="0,0,6,0"/>
-                                                <TextBlock Text="{Binding Name}"
+                                                <TextBlock Text="{Binding DisplayName}"
                                                            VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </HierarchicalDataTemplate>
@@ -1175,14 +1175,14 @@
                                                           SelectedItem="{Binding SelectedVisibilityBindingParameter, Mode=TwoWay}">
                                                     <ComboBox.Style>
                                                         <Style TargetType="ComboBox"
-                                                                BasedOn="{StaticResource {x:Type ComboBox}}">
+                                                               BasedOn="{StaticResource {x:Type ComboBox}}">
                                                             <Setter Property="ItemsSource"
                                                                     Value="{Binding VisibilityBindingParameterCandidates}"/>
                                                             <Setter Property="IsEnabled"
                                                                     Value="{Binding UseExistingVisibilityParameterBinding}"/>
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding UseRemoveExistingVisibilityBinding}"
-                                                                        Value="True">
+                                                                             Value="True">
                                                                     <Setter Property="ItemsSource"
                                                                             Value="{Binding VisibilityBindingRemovalCandidates}"/>
                                                                     <Setter Property="IsEnabled"

@@ -360,6 +360,14 @@ namespace WuwaModModifier.ViewModels
             NotifyDerivedStateChanged();
         }
 
+        public void NotifyJobSwapped()
+        {
+            OnPropertyChanged(nameof(OldFolderName));
+            OnPropertyChanged(nameof(NewFolderName));
+            OnPropertyChanged(nameof(OutputConfigPath));
+            OnPropertyChanged(nameof(ModeText));
+        }
+
         private void NotifyDerivedStateChanged()
         {
             OnPropertyChanged(nameof(HasPreviewError));

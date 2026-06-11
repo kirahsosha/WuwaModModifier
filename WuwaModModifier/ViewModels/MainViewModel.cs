@@ -3013,6 +3013,7 @@ namespace WuwaModModifier.ViewModels
                 var characterItem = new DirectoryItemViewModel
                 {
                     Name = mods.CharacterName,
+                    DisplayName = mods.CharacterName,
                     FullPath = mods.Folder,
                     IsDirectory = true,
                     IsChecked = false
@@ -3023,6 +3024,9 @@ namespace WuwaModModifier.ViewModels
                     var modItem = new DirectoryItemViewModel
                     {
                         Name = mod.ModName,
+                        DisplayName = string.IsNullOrWhiteSpace(mod.Id)
+                            ? mod.ModName
+                            : $"[{mod.Id}] {mod.ModName}",
                         Id = mod.Id,
                         FullPath = mod.FullPath,
                         IsDirectory = false,

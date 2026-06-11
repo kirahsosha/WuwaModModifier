@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Windows.Input;
 using WuwaModModifier.Common;
@@ -88,6 +89,7 @@ namespace WuwaModModifier.ViewModels
             ApplySelectedJobCommand = new RelayCommand(ExecuteApplySelectedJob, CanApplySelectedJob);
             ApplyAllJobsCommand = new RelayCommand(ExecuteApplyAllJobs, CanApplyAllJobs);
             DeleteSelectedPairingCommand = new RelayCommand(ExecuteDeleteSelectedPairing, CanDeleteSelectedPairing);
+            SwapSelectedPairingCommand = new RelayCommand(ExecuteSwapSelectedPairing, CanSwapSelectedPairing);
             ApplyStructuredPreviewEditsCommand = new RelayCommand(ExecuteApplyStructuredPreviewEdits, CanApplyStructuredPreviewEdits);
             SaveNewConfigTextCommand = new RelayCommand(ExecuteSaveNewConfigText, CanSaveNewConfigText);
             SyncToggleDiffItemCommand = new RelayCommand<VersionSyncToggleDiffItem>(ExecuteSyncToggleDiffItem, CanSyncToggleDiffItem);
@@ -281,6 +283,8 @@ namespace WuwaModModifier.ViewModels
 
         public ICommand DeleteSelectedPairingCommand { get; }
 
+        public ICommand SwapSelectedPairingCommand { get; }
+
         public ICommand ApplyStructuredPreviewEditsCommand { get; }
 
         public ICommand SaveNewConfigTextCommand { get; }
@@ -314,6 +318,12 @@ namespace WuwaModModifier.ViewModels
         private bool CanDeleteSelectedPairing()
         {
             return SelectedPairingJob != null;
+        }
+
+        private bool CanSwapSelectedPairing()
+        {
+            return SelectedPairingJob != null &&
+                   SelectedPairingJob.Job.JobKind == VersionSyncJobKind.DirectUpdate;
         }
 
         private bool CanApplyStructuredPreviewEdits()
@@ -511,6 +521,42 @@ namespace WuwaModModifier.ViewModels
 
             ApplyPairingJobFilter();
             StatusText = $"已删除配对：{BuildJobDisplayName(jobToRemove)}";
+        }
+
+        private void ExecuteSwapSelectedPairing()
+        {
+            if (SelectedPairingJob == null)
+            {
+                return;
+            }
+
+            var job = SelectedPairingJob.Job;
+            var oldName = job.OldCandidate.FolderName;
+            var newName = job.NewCandidate.FolderName;
+
+            // Swap old and new candidates.
+            (job.OldCandidate, job.NewCandidate) = (job.NewCandidate, job.OldCandidate);
+
+            // Update output paths to point to the new NewCandidate.
+            job.OutputDirectoryPath = job.NewCandidate.FullPath;
+            job.OutputConfigPath = Path.Combine(
+                job.NewCandidate.FullPath,
+                job.NewCandidate.ConfigRelativePath);
+
+            // Notify UI that computed properties (OldFolderName, NewFolderName, etc.) have changed.
+            SelectedPairingJob.NotifyJobSwapped();
+
+            // Clear cached comparison so it gets rebuilt on next selection.
+            _comparisonCache.Remove(SelectedPairingJob.OutputConfigPath);
+
+            // Refresh the pairing job summaries to rebuild previews.
+            var previewFailureCount = RebuildPairingJobSummaries(
+                _allPairingJobs.Select(item => item.Job).ToList(),
+                SelectedPairingJob?.OutputConfigPath);
+
+            StatusText = previewFailureCount == 0
+                ? $"已交换配对：{newName}（旧版）→ {oldName}（新版）"
+                : $"已交换配对：{newName}（旧版）→ {oldName}（新版），部分预览刷新失败。";
         }
 
         private void ExecuteApplyStructuredPreviewEdits()

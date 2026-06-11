@@ -10,6 +10,7 @@ namespace WuwaModModifier.Data.ViewModels
         private bool _isSelected;
         private string _name = string.Empty;
         private string _id = string.Empty;
+        private string _displayName = string.Empty;
         private string _fullPath = string.Empty;
         private bool _isDirectory;
         private ObservableCollection<DirectoryItemViewModel> _children;
@@ -40,6 +41,19 @@ namespace WuwaModModifier.Data.ViewModels
                 if (_id != value)
                 {
                     _id = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string DisplayName
+        {
+            get => _displayName;
+            set
+            {
+                if (_displayName != value)
+                {
+                    _displayName = value;
                     OnPropertyChanged();
                 }
             }
