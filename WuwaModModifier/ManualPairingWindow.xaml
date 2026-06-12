@@ -46,6 +46,7 @@
                           Margin="0,6,0,0"
                           MinHeight="34"
                           ItemsSource="{Binding Candidates}"
+                          SelectedItem="{Binding SelectedOldCandidate}"
                           DisplayMemberPath="DisplayText"/>
             </StackPanel>
 
@@ -57,6 +58,7 @@
                           Margin="0,6,0,0"
                           MinHeight="34"
                           ItemsSource="{Binding Candidates}"
+                          SelectedItem="{Binding SelectedNewCandidate}"
                           DisplayMemberPath="DisplayText"/>
             </StackPanel>
         </Grid>
@@ -71,6 +73,7 @@
             <Button Width="112"
                     Content="分析并加入"
                     IsDefault="True"
+                    Command="{Binding ConfirmCommand}"
                     Click="ConfirmButton_Click"/>
         </StackPanel>
     </Grid>

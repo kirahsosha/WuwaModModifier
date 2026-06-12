@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 namespace WuwaModModifier.Common
 {
     public interface IFileSystemService
@@ -11,6 +13,12 @@ namespace WuwaModModifier.Common
         void CreateDirectory(string path);
         void DeleteDirectory(string path, bool recursive);
         void CopyDirectory(string source, string destination);
+
+        // Async overloads
+        Task<string> ReadAllTextAsync(string path);
+        Task WriteAllTextAsync(string path, string content);
+        Task CopyDirectoryAsync(string source, string destination);
+        Task DeleteDirectoryAsync(string path, bool recursive);
     }
 }
 

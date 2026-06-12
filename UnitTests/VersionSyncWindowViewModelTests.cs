@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using WuwaModModifier.Common;
@@ -29,7 +29,8 @@ namespace UnitTests
                     }
                 });
             service.ComparisonsByOutputPath[unchangedJob.OutputConfigPath] = CreateComparison(unchangedJob);
-            var viewModel = new VersionSyncWindowViewModel(importedRoot, new TestFileSystemService(importedRoot), new TestMessageService(), service);
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(new TestFileSystemService(importedRoot), new TestMessageService(), service);
+            viewModel.SetImportedDirectory(importedRoot);
 
             Assert.Equal(3, viewModel.PairingJobs.Count);
 
@@ -55,7 +56,8 @@ namespace UnitTests
             var service = CreateVersionSyncService(importedRoot, jobA, jobB);
             var fileSystem = new TestFileSystemService(importedRoot);
             var messages = new TestMessageService();
-            var viewModel = new VersionSyncWindowViewModel(importedRoot, fileSystem, messages, service);
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(fileSystem, messages, service);
+            viewModel.SetImportedDirectory(importedRoot);
             service.BuiltOutputs.Clear();
 
             Assert.True(viewModel.ApplyAllJobsCommand.CanExecute(null));
@@ -95,10 +97,9 @@ namespace UnitTests
                 });
             service.ComparisonsByOutputPath[unchangedJob.OutputConfigPath] = CreateComparison(unchangedJob);
             var messages = new TestMessageService();
-            var viewModel = new VersionSyncWindowViewModel(importedRoot, new TestFileSystemService(importedRoot), messages, service)
-            {
-                SelectedBatchApplyMode = VersionSyncBatchApplyMode.AutoApplicableOnly
-            };
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(new TestFileSystemService(importedRoot), messages, service);
+            viewModel.SetImportedDirectory(importedRoot);
+            viewModel.SelectedBatchApplyMode = VersionSyncBatchApplyMode.AutoApplicableOnly;
             service.BuiltOutputs.Clear();
 
             Assert.True(viewModel.ApplyAllJobsCommand.CanExecute(null));
@@ -125,7 +126,8 @@ namespace UnitTests
             service.FailingOutputs.Add(jobB.OutputConfigPath);
             var fileSystem = new TestFileSystemService(importedRoot);
             var messages = new TestMessageService();
-            var viewModel = new VersionSyncWindowViewModel(importedRoot, fileSystem, messages, service);
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(fileSystem, messages, service);
+            viewModel.SetImportedDirectory(importedRoot);
             service.BuiltOutputs.Clear();
 
             viewModel.ApplyAllJobsCommand.Execute(null);
@@ -154,7 +156,8 @@ namespace UnitTests
             var pairedJob = CreateJob("[502]old", "[502]new", @"C:\mods\Encore\[502]new\mod.ini");
             var service = CreateVersionSyncService(importedRoot, selfJob, pairedJob);
 
-            var viewModel = new VersionSyncWindowViewModel(importedRoot, new TestFileSystemService(importedRoot), new TestMessageService(), service);
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(new TestFileSystemService(importedRoot), new TestMessageService(), service);
+            viewModel.SetImportedDirectory(importedRoot);
 
             Assert.Equal(importedRoot, viewModel.ImportedModDirectoryPath);
             Assert.Equal(1, service.DiscoverCallCount);
@@ -195,7 +198,8 @@ namespace UnitTests
                     }
                 });
 
-            var viewModel = new VersionSyncWindowViewModel(importedRoot, new TestFileSystemService(importedRoot), new TestMessageService(), service);
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(new TestFileSystemService(importedRoot), new TestMessageService(), service);
+            viewModel.SetImportedDirectory(importedRoot);
 
             var added = viewModel.TryAddManualPairing(autoJob.OldCandidate.FullPath, manualNewCandidate.FullPath, out var errorMessage);
 
@@ -212,7 +216,8 @@ namespace UnitTests
             var importedRoot = @"C:\mods\Encore";
             var jobA = CreateJob("[701]old_a", "[701]new_a", @"C:\mods\new\out_a\mod.ini");
             var jobB = CreateJob("[702]old_b", "[702]new_b", @"C:\mods\new\out_b\mod.ini");
-            var viewModel = new VersionSyncWindowViewModel(importedRoot, new TestFileSystemService(importedRoot), new TestMessageService(), CreateVersionSyncService(importedRoot, jobA, jobB));
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(new TestFileSystemService(importedRoot), new TestMessageService(), CreateVersionSyncService(importedRoot, jobA, jobB));
+            viewModel.SetImportedDirectory(importedRoot);
 
             viewModel.SelectedPairingJob = viewModel.PairingJobs.First(item => item.OutputConfigPath == jobA.OutputConfigPath);
             viewModel.DeleteSelectedPairingCommand.Execute(null);
@@ -277,12 +282,8 @@ namespace UnitTests
 
             var fileSystem = new TestFileSystemService(importedRoot);
 
-            var viewModel = new VersionSyncWindowViewModel(
-                importedRoot,
-                fileSystem,
-                new TestMessageService(),
-                service,
-                new ModConfigUpdateService(fileSystem));
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(fileSystem, new TestMessageService(), service);
+            viewModel.SetImportedDirectory(importedRoot);
 
             viewModel.ToggleDiffItems[0].ResultKeyBindingsText = "F8";
             viewModel.ToggleDiffItems[0].ResultTargetValuesText = "$show = 0, 1, 2, 3, 4";
@@ -321,7 +322,8 @@ namespace UnitTests
                         ResultKeyBindingsText = "F1"
                     }
                 });
-            var viewModel = new VersionSyncWindowViewModel(importedRoot, new TestFileSystemService(importedRoot), new TestMessageService(), service);
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(new TestFileSystemService(importedRoot), new TestMessageService(), service);
+            viewModel.SetImportedDirectory(importedRoot);
 
             viewModel.ResultConfigText = "custom edited result";
             viewModel.ApplySelectedJobCommand.Execute(null);
@@ -345,12 +347,8 @@ namespace UnitTests
 
             var fileSystem = new TestFileSystemService(importedRoot);
             var messages = new TestMessageService();
-            var viewModel = new VersionSyncWindowViewModel(
-                importedRoot,
-                fileSystem,
-                messages,
-                service,
-                new ModConfigUpdateService(fileSystem));
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(fileSystem, messages, service);
+            viewModel.SetImportedDirectory(importedRoot);
 
             viewModel.ResultConfigText = "preview-only edit";
             viewModel.SaveNewConfigTextCommand.Execute(null);
@@ -421,12 +419,8 @@ namespace UnitTests
 
             var fileSystem = new TestFileSystemService(importedRoot);
 
-            var viewModel = new VersionSyncWindowViewModel(
-                importedRoot,
-                fileSystem,
-                new TestMessageService(),
-                service,
-                new ModConfigUpdateService(fileSystem));
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(fileSystem, new TestMessageService(), service);
+            viewModel.SetImportedDirectory(importedRoot);
 
             viewModel.ResultConfigText += "\n; preview-only edit";
 
@@ -498,12 +492,8 @@ namespace UnitTests
 
             var fileSystem = new TestFileSystemService(importedRoot);
 
-            var viewModel = new VersionSyncWindowViewModel(
-                importedRoot,
-                fileSystem,
-                new TestMessageService(),
-                service,
-                new ModConfigUpdateService(fileSystem));
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(fileSystem, new TestMessageService(), service);
+            viewModel.SetImportedDirectory(importedRoot);
 
             viewModel.ResultConfigText += "\n; preview-only edit";
 
@@ -572,12 +562,8 @@ namespace UnitTests
 
             var fileSystem = new TestFileSystemService(importedRoot);
 
-            var viewModel = new VersionSyncWindowViewModel(
-                importedRoot,
-                fileSystem,
-                new TestMessageService(),
-                service,
-                new ModConfigUpdateService(fileSystem));
+            var viewModel = TestHelper.CreateVersionSyncWindowViewModel(fileSystem, new TestMessageService(), service);
+            viewModel.SetImportedDirectory(importedRoot);
 
             viewModel.ResultConfigText += "\n; preview-only edit";
 
@@ -852,6 +838,29 @@ namespace UnitTests
 
             public void CopyDirectory(string source, string destination)
             {
+            }
+
+            public Task<string> ReadAllTextAsync(string path)
+            {
+                return Task.FromResult(ReadAllText(path));
+            }
+
+            public Task WriteAllTextAsync(string path, string content)
+            {
+                WriteAllText(path, content);
+                return Task.CompletedTask;
+            }
+
+            public Task CopyDirectoryAsync(string source, string destination)
+            {
+                CopyDirectory(source, destination);
+                return Task.CompletedTask;
+            }
+
+            public Task DeleteDirectoryAsync(string path, bool recursive)
+            {
+                DeleteDirectory(path, recursive);
+                return Task.CompletedTask;
             }
         }
 

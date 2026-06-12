@@ -1,31 +1,30 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using WuwaModModifier.Common.Helpers;
 using WuwaModModifier.Model;
 
 namespace WuwaModModifier.Common
 {
     public class ModConfigUpdateService : IModConfigUpdateService
     {
-        private const string ElseSentinel = "__ELSE_BRANCH__";
-
-        private static readonly Regex VariableTokenRegex =
+        internal static readonly Regex VariableTokenRegex =
             new Regex(@"(?<var>\$[^\s=,]+)", RegexOptions.Compiled);
 
-        private static readonly Regex VariableNameRegex =
+        internal static readonly Regex VariableNameRegex =
             new Regex(@"^\$[^\s=,\[\];]+$", RegexOptions.Compiled);
 
-        private static readonly Regex EqualityClauseRegex =
+        internal static readonly Regex EqualityClauseRegex =
             new Regex(@"^\$[^\s=,]+\s*==\s*(?<value>[^\s\)]+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        private static readonly Regex InequalityClauseRegex =
+        internal static readonly Regex InequalityClauseRegex =
             new Regex(@"^\$[^\s=,]+\s*!=\s*(?<value>[^\s\)]+)$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
-        private readonly IFileSystemService _fileSystem;
-        private readonly IModConfigParser _parser;
-        private readonly IModConfigAnalysisService _analysisService;
+        internal readonly IFileSystemService _fileSystem;
+        internal readonly IModConfigParser _parser;
+        internal readonly IModConfigAnalysisService _analysisService;
 
         public ModConfigUpdateService(
             IFileSystemService fileSystem,
@@ -35,14 +34,6 @@ namespace WuwaModModifier.Common
             _fileSystem = fileSystem;
             _parser = parser;
             _analysisService = analysisService;
-        }
-
-        public ModConfigUpdateService(IFileSystemService fileSystem)
-            : this(
-                fileSystem,
-                new ModConfigParser(fileSystem),
-                new ModConfigAnalysisService(new ModConfigParser(fileSystem)))
-        {
         }
 
         public ModConfigEditBuffer LoadBuffer(string filePath)
@@ -104,13 +95,13 @@ namespace WuwaModModifier.Common
                 throw new FileNotFoundException("标准模板文件不存在。", templatePath);
             }
 
-            var slots = LoadStandardToggleSlots(templatePath);
+            var slots = LoadStandardToggleSlots(_fileSystem, _parser, _analysisService, templatePath);
             if (slots.Count == 0)
             {
                 throw new InvalidOperationException("标准模板中未找到可用的 toggle 槽位。");
             }
 
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             var orderedKeySections = document.Sections
                 .Where(section => IsKeySection(section.Name))
                 .ToList();
@@ -211,7 +202,7 @@ namespace WuwaModModifier.Common
 
             ValidateVariableName(variableName, nameof(variableName));
 
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             InsertParameterDeclaration(document, variableName);
             return CreateUpdatedBuffer(buffer, document, $"新增参数 {variableName}");
         }
@@ -233,7 +224,7 @@ namespace WuwaModModifier.Common
 
             ValidateVariableName(variableName, nameof(variableName));
 
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             var declaration = FindVariableDeclaration(document, variableName);
             if (declaration == null)
             {
@@ -258,7 +249,7 @@ namespace WuwaModModifier.Common
             ValidateVariableName(variableName, nameof(variableName));
             var normalizedBindings = NormalizeKeyBindings(keyBindings);
 
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             EnsureParameterDeclarationExists(document, variableName);
             InsertVisibilityBindingKeySection(document, variableName, normalizedBindings);
             return CreateUpdatedBuffer(buffer, document, $"为参数 {variableName} 新增按键绑定");
@@ -270,7 +261,7 @@ namespace WuwaModModifier.Common
             IReadOnlyList<string> newKeyBindings)
         {
             var normalizedBindings = NormalizeKeyBindings(newKeyBindings);
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             var section = FindSection(document, keySectionName);
             var keyStatementIndices = section.Statements
                 .Select((statement, index) => new { statement, index })
@@ -308,7 +299,7 @@ namespace WuwaModModifier.Common
             ValidateVariableName(variableName, nameof(variableName));
             var normalizedValues = NormalizeToggleTargetValues(newValues);
 
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             var section = FindSection(document, keySectionName);
             var targetStatement = section.Statements.FirstOrDefault(statement =>
                 statement.Kind == ModConfigStatementKind.VariableAssignment &&
@@ -338,7 +329,7 @@ namespace WuwaModModifier.Common
                 throw new InvalidOperationException("新旧参数名不能相同。");
             }
 
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             var analysis = _analysisService.Analyze(document);
             var parameter = analysis.Parameters.SingleOrDefault(item =>
                 item.Name.Equals(oldVariableName, StringComparison.OrdinalIgnoreCase));
@@ -384,7 +375,7 @@ namespace WuwaModModifier.Common
                 throw new ArgumentException("模型显示标签不能为空。", nameof(drawLabel));
             }
 
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             var analysis = _analysisService.Analyze(document);
             var visibilityItem = FindVisibilityItem(analysis, componentSectionName, drawLabel);
             var drawTarget = FindDrawTargetInfo(document, componentSectionName, drawLabel);
@@ -498,7 +489,7 @@ namespace WuwaModModifier.Common
 
             ValidateVariableName(variableName, nameof(variableName));
 
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             var analysis = _analysisService.Analyze(document);
             var visibilityItem = FindVisibilityItem(analysis, componentSectionName, drawLabel);
 
@@ -540,7 +531,7 @@ namespace WuwaModModifier.Common
             ValidateVariableName(variableName, nameof(variableName));
             var normalizedBindings = NormalizeKeyBindings(keyBindings);
 
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             var analysis = _analysisService.Analyze(document);
             var visibilityItem = FindVisibilityItem(analysis, componentSectionName, drawLabel);
 
@@ -596,7 +587,7 @@ namespace WuwaModModifier.Common
                 throw new ArgumentException("参数名不能为空。", nameof(variableName));
             }
 
-            var document = ParseBuffer(buffer);
+            var document = ParseBuffer(_parser, buffer);
             var analysis = _analysisService.Analyze(document);
             var visibilityItem = FindVisibilityItem(analysis, componentSectionName, drawLabel);
 
@@ -668,7 +659,7 @@ namespace WuwaModModifier.Common
             };
         }
 
-        private static string DetectLineEnding(string content)
+        internal static string DetectLineEnding(string content)
         {
             if (content.Contains("\r\n", StringComparison.Ordinal))
             {
@@ -683,7 +674,7 @@ namespace WuwaModModifier.Common
             return Environment.NewLine;
         }
 
-        private static void ValidateBuffer(ModConfigEditBuffer? buffer)
+        internal static void ValidateBuffer(ModConfigEditBuffer? buffer)
         {
             if (buffer == null)
             {
@@ -691,7 +682,7 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static void ValidateVariableName(string variableName, string parameterName)
+        internal static void ValidateVariableName(string variableName, string parameterName)
         {
             if (!VariableNameRegex.IsMatch(variableName))
             {
@@ -699,7 +690,7 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static IReadOnlyList<string> NormalizeKeyBindings(IReadOnlyList<string> newKeyBindings)
+        internal static IReadOnlyList<string> NormalizeKeyBindings(IReadOnlyList<string> newKeyBindings)
         {
             if (newKeyBindings == null)
             {
@@ -718,7 +709,7 @@ namespace WuwaModModifier.Common
             return result;
         }
 
-        private static IReadOnlyList<string> NormalizeToggleTargetValues(IReadOnlyList<string> newValues)
+        internal static IReadOnlyList<string> NormalizeToggleTargetValues(IReadOnlyList<string> newValues)
         {
             if (newValues == null)
             {
@@ -737,19 +728,19 @@ namespace WuwaModModifier.Common
             return result;
         }
 
-        private static bool IsValidKeyBinding(string binding)
+        internal static bool IsValidKeyBinding(string binding)
         {
             return !string.IsNullOrWhiteSpace(binding) &&
                 binding.IndexOfAny(new[] { '\r', '\n', '=', ';', '[', ']' }) < 0;
         }
 
-        private ModConfigDocument ParseBuffer(ModConfigEditBuffer buffer)
+        internal static ModConfigDocument ParseBuffer(IModConfigParser parser, ModConfigEditBuffer buffer)
         {
             ValidateBuffer(buffer);
-            return _parser.Parse(buffer.Content);
+            return parser.Parse(buffer.Content);
         }
 
-        private static ModConfigSection FindSection(ModConfigDocument document, string sectionName)
+        internal static ModConfigSection FindSection(ModConfigDocument document, string sectionName)
         {
             var section = document.Sections.FirstOrDefault(item =>
                 item.Name.Equals(sectionName, StringComparison.OrdinalIgnoreCase));
@@ -761,13 +752,13 @@ namespace WuwaModModifier.Common
             return section;
         }
 
-        private static string GetIndentation(string rawText)
+        internal static string GetIndentation(string rawText)
         {
             var nonWhitespaceIndex = rawText.TakeWhile(char.IsWhiteSpace).Count();
             return rawText.Substring(0, nonWhitespaceIndex);
         }
 
-        private static void ApplyKeyBindingsToSection(ModConfigSection section, IReadOnlyList<string> normalizedBindings)
+        internal static void ApplyKeyBindingsToSection(ModConfigSection section, IReadOnlyList<string> normalizedBindings)
         {
             var keyStatementIndices = section.Statements
                 .Select((statement, index) => new { statement, index })
@@ -801,7 +792,7 @@ namespace WuwaModModifier.Common
             }));
         }
 
-        private static string ReplaceVariableTokens(string rawText, string oldVariableName, string newVariableName)
+        internal static string ReplaceVariableTokens(string rawText, string oldVariableName, string newVariableName)
         {
             return VariableTokenRegex.Replace(rawText, match =>
             {
@@ -812,7 +803,7 @@ namespace WuwaModModifier.Common
             });
         }
 
-        private static bool ReplaceVariableTokensInDocument(ModConfigDocument document, string oldVariableName, string newVariableName)
+        internal static bool ReplaceVariableTokensInDocument(ModConfigDocument document, string oldVariableName, string newVariableName)
         {
             var changed = false;
             foreach (var statement in EnumerateStatements(document))
@@ -848,7 +839,7 @@ namespace WuwaModModifier.Common
             return changed;
         }
 
-        private static void RenameSection(ModConfigSection section, string newSectionName)
+        internal static void RenameSection(ModConfigSection section, string newSectionName)
         {
             if (section.Name.Equals(newSectionName, StringComparison.OrdinalIgnoreCase))
             {
@@ -859,12 +850,12 @@ namespace WuwaModModifier.Common
             section.HeaderText = $"[{newSectionName}]";
         }
 
-        private static bool IsKeySection(string sectionName)
+        internal static bool IsKeySection(string sectionName)
         {
-            return sectionName.StartsWith("Key", StringComparison.OrdinalIgnoreCase);
+            return ModConfigSectionHelpers.IsKeySection(sectionName);
         }
 
-        private static bool TryGetStandardizationTarget(
+        internal static bool TryGetStandardizationTarget(
             ModToggleDefinition toggle,
             IReadOnlyCollection<ModParameterDefinition> parameters,
             out string currentVariableName,
@@ -896,15 +887,19 @@ namespace WuwaModModifier.Common
             return true;
         }
 
-        private static bool IsBinaryToggleValues(IReadOnlyCollection<string> values)
+        internal static bool IsBinaryToggleValues(IReadOnlyCollection<string> values)
         {
             return values.Count > 0 && values.All(value => value == "0" || value == "1");
         }
 
-        private List<StandardToggleSlot> LoadStandardToggleSlots(string templatePath)
+        internal static List<StandardToggleSlot> LoadStandardToggleSlots(
+            IFileSystemService fileSystem,
+            IModConfigParser parser,
+            IModConfigAnalysisService analysisService,
+            string templatePath)
         {
-            var templateDocument = _parser.ParseFile(templatePath);
-            var templateAnalysis = _analysisService.Analyze(templateDocument);
+            var templateDocument = parser.ParseFile(templatePath);
+            var templateAnalysis = analysisService.Analyze(templateDocument);
 
             return templateAnalysis.Toggles
                 .Where(toggle => TryGetStandardizationTarget(toggle, templateAnalysis.Parameters, out _, out _))
@@ -917,7 +912,7 @@ namespace WuwaModModifier.Common
                 .ToList();
         }
 
-        private static IEnumerable<ModConfigStatement> EnumerateStatements(ModConfigDocument document)
+        internal static IEnumerable<ModConfigStatement> EnumerateStatements(ModConfigDocument document)
         {
             foreach (var statement in document.RootStatements)
             {
@@ -933,7 +928,7 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static IReadOnlyList<string> GetAvailableValues(ModParameterDefinition parameter)
+        internal static IReadOnlyList<string> GetAvailableValues(ModParameterDefinition parameter)
         {
             var values = parameter.ValueOptions
                 .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -949,7 +944,7 @@ namespace WuwaModModifier.Common
             return values;
         }
 
-        private static ModVisibilityItem FindVisibilityItem(
+        internal static ModVisibilityItem FindVisibilityItem(
             ModConfigAnalysisResult analysis,
             string componentSectionName,
             string drawLabel)
@@ -972,7 +967,7 @@ namespace WuwaModModifier.Common
             return visibilityItem;
         }
 
-        private static void EnsureVisibilityCanBind(ModVisibilityItem visibilityItem)
+        internal static void EnsureVisibilityCanBind(ModVisibilityItem visibilityItem)
         {
             if (visibilityItem.DrawCallCount <= 0)
             {
@@ -987,7 +982,7 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static void EnsureVisibilityCanCreateNewBinding(ModVisibilityItem visibilityItem)
+        internal static void EnsureVisibilityCanCreateNewBinding(ModVisibilityItem visibilityItem)
         {
             if (visibilityItem.DrawCallCount <= 0)
             {
@@ -1006,7 +1001,7 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static void EnsureBindableVisibilityParameter(
+        internal static void EnsureBindableVisibilityParameter(
             ModConfigAnalysisResult analysis,
             string variableName)
         {
@@ -1032,14 +1027,14 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static ModConfigStatement? FindVariableDeclaration(ModConfigDocument document, string variableName)
+        internal static ModConfigStatement? FindVariableDeclaration(ModConfigDocument document, string variableName)
         {
             return EnumerateStatements(document).FirstOrDefault(statement =>
                 statement.Kind == ModConfigStatementKind.GlobalDeclaration &&
                 statement.VariableName.Equals(variableName, StringComparison.OrdinalIgnoreCase));
         }
 
-        private static void EnsureParameterDeclarationExists(ModConfigDocument document, string variableName)
+        internal static void EnsureParameterDeclarationExists(ModConfigDocument document, string variableName)
         {
             if (FindVariableDeclaration(document, variableName) == null)
             {
@@ -1047,7 +1042,7 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static void InsertParameterDeclaration(ModConfigDocument document, string variableName)
+        internal static void InsertParameterDeclaration(ModConfigDocument document, string variableName)
         {
             if (FindVariableDeclaration(document, variableName) != null)
             {
@@ -1059,7 +1054,7 @@ namespace WuwaModModifier.Common
             constantsSection.Statements.Insert(insertIndex, CreateGlobalDeclaration(variableName, "1"));
         }
 
-        private static void InsertVisibilityBindingKeySection(
+        internal static void InsertVisibilityBindingKeySection(
             ModConfigDocument document,
             string variableName,
             IReadOnlyList<string> keyBindings)
@@ -1094,7 +1089,7 @@ namespace WuwaModModifier.Common
             document.Sections.Insert(insertIndex, keySection);
         }
 
-        private static ModConfigSection GetOrCreateConstantsSection(ModConfigDocument document)
+        internal static ModConfigSection GetOrCreateConstantsSection(ModConfigDocument document)
         {
             var section = document.Sections.FirstOrDefault(item =>
                 item.Name.Equals("Constants", StringComparison.OrdinalIgnoreCase));
@@ -1113,7 +1108,7 @@ namespace WuwaModModifier.Common
             return constantsSection;
         }
 
-        private static int GetInsertIndexBeforeTrailingBlankLines(IList<ModConfigStatement> statements)
+        internal static int GetInsertIndexBeforeTrailingBlankLines(IList<ModConfigStatement> statements)
         {
             var insertIndex = statements.Count;
             while (insertIndex > 0 && statements[insertIndex - 1].Kind == ModConfigStatementKind.BlankLine)
@@ -1124,7 +1119,7 @@ namespace WuwaModModifier.Common
             return insertIndex;
         }
 
-        private static int GetVisibilityBindingKeySectionInsertIndex(ModConfigDocument document)
+        internal static int GetVisibilityBindingKeySectionInsertIndex(ModConfigDocument document)
         {
             var lastKeySectionIndex = -1;
             for (var index = 0; index < document.Sections.Count; index++)
@@ -1145,7 +1140,7 @@ namespace WuwaModModifier.Common
             return constantsSectionIndex >= 0 ? constantsSectionIndex + 1 : document.Sections.Count;
         }
 
-        private static string CreateUniqueKeySectionName(ModConfigDocument document, string variableName)
+        internal static string CreateUniqueKeySectionName(ModConfigDocument document, string variableName)
         {
             var baseName = variableName.TrimStart('$');
             if (string.IsNullOrWhiteSpace(baseName))
@@ -1163,7 +1158,7 @@ namespace WuwaModModifier.Common
             return candidate;
         }
 
-        private static bool TryGetPreferredKeyCondition(ModConfigDocument document, out string conditionValue)
+        internal static bool TryGetPreferredKeyCondition(ModConfigDocument document, out string conditionValue)
         {
             conditionValue = string.Empty;
 
@@ -1185,7 +1180,7 @@ namespace WuwaModModifier.Common
             return false;
         }
 
-        private static void EnsureTrailingBlankLine(ModConfigSection section)
+        internal static void EnsureTrailingBlankLine(ModConfigSection section)
         {
             if (section.Statements.Count == 0 ||
                 section.Statements[section.Statements.Count - 1].Kind != ModConfigStatementKind.BlankLine)
@@ -1194,7 +1189,7 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static ModConfigStatement CreateGlobalDeclaration(string variableName, string value)
+        internal static ModConfigStatement CreateGlobalDeclaration(string variableName, string value)
         {
             return new ModConfigStatement
             {
@@ -1206,7 +1201,7 @@ namespace WuwaModModifier.Common
             };
         }
 
-        private static ModConfigStatement CreateAssignmentStatement(string name, string value)
+        internal static ModConfigStatement CreateAssignmentStatement(string name, string value)
         {
             return new ModConfigStatement
             {
@@ -1217,7 +1212,7 @@ namespace WuwaModModifier.Common
             };
         }
 
-        private static ModConfigStatement CreateVariableAssignment(string variableName, string value)
+        internal static ModConfigStatement CreateVariableAssignment(string variableName, string value)
         {
             return new ModConfigStatement
             {
@@ -1229,7 +1224,7 @@ namespace WuwaModModifier.Common
             };
         }
 
-        private static ModConfigStatement CreateBlankLineStatement()
+        internal static ModConfigStatement CreateBlankLineStatement()
         {
             return new ModConfigStatement
             {
@@ -1238,7 +1233,7 @@ namespace WuwaModModifier.Common
             };
         }
 
-        private static ModConfigStatement CreateControlLineStatement(string rawText)
+        internal static ModConfigStatement CreateControlLineStatement(string rawText)
         {
             return new ModConfigStatement
             {
@@ -1249,19 +1244,19 @@ namespace WuwaModModifier.Common
             };
         }
 
-        private static string GetLeadingToken(string rawText)
+        internal static string GetLeadingToken(string rawText)
         {
             var trimmed = rawText.Trim();
             var spaceIndex = trimmed.IndexOf(' ');
             return spaceIndex < 0 ? trimmed : trimmed.Substring(0, spaceIndex);
         }
 
-        private static string JoinVisibilityLabels(IEnumerable<string> labels)
+        internal static string JoinVisibilityLabels(IEnumerable<string> labels)
         {
             return string.Join(" | ", labels.Where(label => !string.IsNullOrWhiteSpace(label)));
         }
 
-        private static IEnumerable<string> SplitVisibilityLabels(string drawLabel)
+        internal static IEnumerable<string> SplitVisibilityLabels(string drawLabel)
         {
             return (drawLabel ?? string.Empty)
                 .Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries)
@@ -1269,7 +1264,7 @@ namespace WuwaModModifier.Common
                 .Where(label => !string.IsNullOrWhiteSpace(label));
         }
 
-        private static string NormalizeVisibilityLabel(string drawLabel)
+        internal static string NormalizeVisibilityLabel(string drawLabel)
         {
             return (drawLabel ?? string.Empty)
                 .Trim()
@@ -1280,17 +1275,17 @@ namespace WuwaModModifier.Common
                 .Trim();
         }
 
-        private static void WrapDrawTargetWithVisibilityCondition(DrawTargetInfo drawTarget, string variableName)
+        internal static void WrapDrawTargetWithVisibilityCondition(DrawTargetInfo drawTarget, string variableName)
         {
             WrapDrawTargetWithCondition(drawTarget, $"{variableName} == 1");
         }
 
-        private static void WrapDrawTargetWithConstantCondition(DrawTargetInfo drawTarget, bool isVisible)
+        internal static void WrapDrawTargetWithConstantCondition(DrawTargetInfo drawTarget, bool isVisible)
         {
             WrapDrawTargetWithCondition(drawTarget, isVisible ? "1" : "0");
         }
 
-        private static void WrapDrawTargetWithCondition(DrawTargetInfo drawTarget, string conditionExpression)
+        internal static void WrapDrawTargetWithCondition(DrawTargetInfo drawTarget, string conditionExpression)
         {
             var section = drawTarget.Section;
             var drawStatement = section.Statements[drawTarget.DrawStatementIndex];
@@ -1316,7 +1311,7 @@ namespace WuwaModModifier.Common
                 CreateControlLineStatement($"{outerIndent}endif"));
         }
 
-        private static void UnwrapDrawTargetFromConstantCondition(DrawTargetInfo drawTarget, bool isVisible)
+        internal static void UnwrapDrawTargetFromConstantCondition(DrawTargetInfo drawTarget, bool isVisible)
         {
             var wrapper = FindConstantConditionWrapper(drawTarget, isVisible);
             if (wrapper == null)
@@ -1327,28 +1322,10 @@ namespace WuwaModModifier.Common
             var section = wrapper.Section;
             var startIndex = wrapper.StatementIndex;
             var endIndex = FindMatchingEndIfIndex(section, startIndex);
-            var outerIndent = GetIndentation(section.Statements[startIndex].RawText);
-            var innerIndent = outerIndent + "    ";
-
-            for (var index = startIndex + 1; index < endIndex; index++)
-            {
-                var statement = section.Statements[index];
-                if (statement.Kind == ModConfigStatementKind.BlankLine)
-                {
-                    continue;
-                }
-
-                if (statement.RawText.StartsWith(innerIndent, StringComparison.Ordinal))
-                {
-                    statement.RawText = outerIndent + statement.RawText.Substring(innerIndent.Length);
-                }
-            }
-
-            section.Statements.RemoveAt(endIndex);
-            section.Statements.RemoveAt(startIndex);
+            UnwrapIndentedBlock(section, startIndex, endIndex);
         }
 
-        private static void UnwrapVisibilityBinding(DrawTargetInfo drawTarget, string variableName)
+        internal static void UnwrapVisibilityBinding(DrawTargetInfo drawTarget, string variableName)
         {
             var wrapper = FindVisibilityConditionWrapper(drawTarget, variableName);
             if (wrapper == null)
@@ -1359,6 +1336,11 @@ namespace WuwaModModifier.Common
             var section = wrapper.Section;
             var startIndex = wrapper.StatementIndex;
             var endIndex = FindMatchingEndIfIndex(section, startIndex);
+            UnwrapIndentedBlock(section, startIndex, endIndex);
+        }
+
+        internal static void UnwrapIndentedBlock(ModConfigSection section, int startIndex, int endIndex)
+        {
             var outerIndent = GetIndentation(section.Statements[startIndex].RawText);
             var innerIndent = outerIndent + "    ";
 
@@ -1380,7 +1362,7 @@ namespace WuwaModModifier.Common
             section.Statements.RemoveAt(startIndex);
         }
 
-        private static ControlLineTarget? FindVisibilityConditionWrapper(DrawTargetInfo drawTarget, string variableName)
+        internal static ControlLineTarget? FindVisibilityConditionWrapper(DrawTargetInfo drawTarget, string variableName)
         {
             var count = Math.Min(drawTarget.ControlExpressions.Count, drawTarget.ControlLineTargets.Count);
             for (var index = count - 1; index >= 0; index--)
@@ -1401,7 +1383,7 @@ namespace WuwaModModifier.Common
             return null;
         }
 
-        private static bool IsVisibilityConditionExpression(string expression, string variableName)
+        internal static bool IsVisibilityConditionExpression(string expression, string variableName)
         {
             if (string.IsNullOrWhiteSpace(expression))
             {
@@ -1416,7 +1398,7 @@ namespace WuwaModModifier.Common
                     trimmed.EndsWith("== 1", StringComparison.OrdinalIgnoreCase));
         }
 
-        private static bool CanToggleVisibilityDirectly(ModVisibilityItem visibilityItem)
+        internal static bool CanToggleVisibilityDirectly(ModVisibilityItem visibilityItem)
         {
             return visibilityItem.DrawCallCount > 0 &&
                 visibilityItem.ControllingParameters.Count == 0 &&
@@ -1424,13 +1406,13 @@ namespace WuwaModModifier.Common
                 visibilityItem.ControllingKeyBindings.Count == 0;
         }
 
-        private static bool IsVisibilityDirectlyHidden(ModVisibilityItem visibilityItem)
+        internal static bool IsVisibilityDirectlyHidden(ModVisibilityItem visibilityItem)
         {
             return CanToggleVisibilityDirectly(visibilityItem) &&
                 visibilityItem.ControlExpressions.Any(expression => IsConstantConditionExpression(expression, false));
         }
 
-        private static ControlLineTarget? FindConstantConditionWrapper(DrawTargetInfo drawTarget, bool isVisible)
+        internal static ControlLineTarget? FindConstantConditionWrapper(DrawTargetInfo drawTarget, bool isVisible)
         {
             var count = Math.Min(drawTarget.ControlExpressions.Count, drawTarget.ControlLineTargets.Count);
             for (var index = count - 1; index >= 0; index--)
@@ -1450,7 +1432,7 @@ namespace WuwaModModifier.Common
             return null;
         }
 
-        private static int FindMatchingEndIfIndex(ModConfigSection section, int startIndex)
+        internal static int FindMatchingEndIfIndex(ModConfigSection section, int startIndex)
         {
             var depth = 0;
             for (var index = startIndex; index < section.Statements.Count; index++)
@@ -1481,12 +1463,12 @@ namespace WuwaModModifier.Common
             throw new InvalidOperationException("未找到模型显示控制块对应的 endif。");
         }
 
-        private static bool IsConstantConditionExpression(string expression, bool isVisible)
+        internal static bool IsConstantConditionExpression(string expression, bool isVisible)
         {
             return expression.Trim().Equals(isVisible ? "1" : "0", StringComparison.OrdinalIgnoreCase);
         }
 
-        private static void ReplaceVisibilityControlVariable(
+        internal static void ReplaceVisibilityControlVariable(
             DrawTargetInfo drawTarget,
             string oldVariableName,
             string newVariableName)
@@ -1513,7 +1495,7 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static string ReplaceAssignmentValue(string rawText, string newValue)
+        internal static string ReplaceAssignmentValue(string rawText, string newValue)
         {
             var equalsIndex = rawText.IndexOf('=');
             if (equalsIndex < 0)
@@ -1524,7 +1506,7 @@ namespace WuwaModModifier.Common
             return $"{rawText.Substring(0, equalsIndex + 1)} {newValue}";
         }
 
-        private static bool TryGetAllowedValues(
+        internal static bool TryGetAllowedValues(
             string expression,
             string variableName,
             IReadOnlyList<string> availableValues,
@@ -1532,7 +1514,7 @@ namespace WuwaModModifier.Common
         {
             allowedValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var normalizedExpression = TrimOuterParentheses(expression.Trim());
-            if (normalizedExpression.Length == 0 || normalizedExpression.Equals(ElseSentinel, StringComparison.Ordinal))
+            if (normalizedExpression.Length == 0 || normalizedExpression.Equals(ModConfigSectionHelpers.ElseSentinel, StringComparison.Ordinal))
             {
                 return false;
             }
@@ -1614,7 +1596,7 @@ namespace WuwaModModifier.Common
             return false;
         }
 
-        private static bool TryGetEqualityClauseValue(string clause, string variableName, out string value)
+        internal static bool TryGetEqualityClauseValue(string clause, string variableName, out string value)
         {
             value = string.Empty;
             var normalizedClause = TrimOuterParentheses(clause.Trim());
@@ -1634,7 +1616,7 @@ namespace WuwaModModifier.Common
             return value.Length > 0;
         }
 
-        private static bool TryGetInequalityClauseValue(string clause, string variableName, out string value)
+        internal static bool TryGetInequalityClauseValue(string clause, string variableName, out string value)
         {
             value = string.Empty;
             var normalizedClause = TrimOuterParentheses(clause.Trim());
@@ -1654,7 +1636,7 @@ namespace WuwaModModifier.Common
             return value.Length > 0;
         }
 
-        private static string TrimOuterParentheses(string text)
+        internal static string TrimOuterParentheses(string text)
         {
             var result = text;
             while (result.Length >= 2 && result.StartsWith("(", StringComparison.Ordinal) && result.EndsWith(")", StringComparison.Ordinal))
@@ -1665,7 +1647,7 @@ namespace WuwaModModifier.Common
             return result;
         }
 
-        private DrawTargetInfo? FindDrawTargetInfo(ModConfigDocument document, string componentSectionName, string drawLabel)
+        internal static DrawTargetInfo? FindDrawTargetInfo(ModConfigDocument document, string componentSectionName, string drawLabel)
         {
             var sectionLookup = document.Sections
                 .GroupBy(section => section.Name, StringComparer.OrdinalIgnoreCase)
@@ -1684,7 +1666,7 @@ namespace WuwaModModifier.Common
                 drawLabel);
         }
 
-        private DrawTargetInfo? FindDrawTargetInfo(
+        internal static DrawTargetInfo? FindDrawTargetInfo(
             ModConfigSection currentSection,
             IReadOnlyDictionary<string, ModConfigSection> sectionLookup,
             HashSet<string> activePathSectionNames,
@@ -1783,43 +1765,12 @@ namespace WuwaModModifier.Common
             return null;
         }
 
-        private static void UpdateControlStack(Stack<string> controlStack, string rawText)
+        internal static void UpdateControlStack(Stack<string> controlStack, string rawText)
         {
-            if (rawText.StartsWith("if ", StringComparison.OrdinalIgnoreCase))
-            {
-                controlStack.Push(rawText.Substring(2).Trim());
-                return;
-            }
-
-            if (rawText.StartsWith("elif ", StringComparison.OrdinalIgnoreCase))
-            {
-                if (controlStack.Count > 0)
-                {
-                    controlStack.Pop();
-                }
-
-                controlStack.Push(rawText.Substring(4).Trim());
-                return;
-            }
-
-            if (rawText.Equals("else", StringComparison.OrdinalIgnoreCase))
-            {
-                if (controlStack.Count > 0)
-                {
-                    controlStack.Pop();
-                }
-
-                controlStack.Push(ElseSentinel);
-                return;
-            }
-
-            if (rawText.Equals("endif", StringComparison.OrdinalIgnoreCase) && controlStack.Count > 0)
-            {
-                controlStack.Pop();
-            }
+            ModConfigSectionHelpers.UpdateControlStack(controlStack, rawText);
         }
 
-        private static void UpdateControlLineTargetStack(
+        internal static void UpdateControlLineTargetStack(
             Stack<ControlLineTarget> controlLineTargetStack,
             ModConfigSection currentSection,
             int statementIndex,
@@ -1857,21 +1808,12 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static bool TryGetDrawLabel(string rawText, out string drawLabel)
+        internal static bool TryGetDrawLabel(string rawText, out string drawLabel)
         {
-            drawLabel = string.Empty;
-            var trimmed = rawText.Trim();
-            if (!trimmed.StartsWith("; Draw ", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.StartsWith("; Draw skipped", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            drawLabel = trimmed.TrimStart(';').Trim();
-            return drawLabel.Length > 0;
+            return ModConfigSectionHelpers.TryGetDrawLabel(rawText, out drawLabel);
         }
 
-        private static string RenderDocument(ModConfigDocument document, string lineEnding)
+        internal static string RenderDocument(ModConfigDocument document, string lineEnding)
         {
             var lines = new List<string>();
             lines.AddRange(document.RootStatements.Select(statement => statement.RawText));
@@ -1885,7 +1827,7 @@ namespace WuwaModModifier.Common
             return string.Join(lineEnding, lines);
         }
 
-        private ModConfigEditBuffer CreateUpdatedBuffer(ModConfigEditBuffer sourceBuffer, ModConfigDocument document, string changeDescription)
+        internal static ModConfigEditBuffer CreateUpdatedBuffer(ModConfigEditBuffer sourceBuffer, ModConfigDocument document, string changeDescription)
         {
             var renderedContent = RenderDocument(document, sourceBuffer.LineEnding);
             var nextAppliedChanges = renderedContent.Equals(sourceBuffer.Content, StringComparison.Ordinal)
@@ -1901,7 +1843,7 @@ namespace WuwaModModifier.Common
             };
         }
 
-        private static string ResolveTargetPath(
+        internal static string ResolveTargetPath(
             string configPath,
             ModConfigSaveTarget saveTarget,
             string modRootPath,
@@ -1916,7 +1858,7 @@ namespace WuwaModModifier.Common
             return BuildTargetPath(locationInfo, saveTarget, modRootPath, wwmiRootPath);
         }
 
-        private static bool TryResolveTargetPathByRootReplacement(
+        internal static bool TryResolveTargetPathByRootReplacement(
             string configPath,
             ModConfigSaveTarget saveTarget,
             string modRootPath,
@@ -1970,7 +1912,7 @@ namespace WuwaModModifier.Common
             return false;
         }
 
-        private static bool TryGetRelativePathUnderRoot(string filePath, string rootPath, out string relativePath)
+        internal static bool TryGetRelativePathUnderRoot(string filePath, string rootPath, out string relativePath)
         {
             relativePath = string.Empty;
             if (string.IsNullOrWhiteSpace(filePath) || string.IsNullOrWhiteSpace(rootPath))
@@ -1989,7 +1931,7 @@ namespace WuwaModModifier.Common
             return !string.IsNullOrWhiteSpace(relativePath);
         }
 
-        private static string EnsureTrailingSeparator(string path)
+        internal static string EnsureTrailingSeparator(string path)
         {
             if (string.IsNullOrWhiteSpace(path))
             {
@@ -2001,7 +1943,7 @@ namespace WuwaModModifier.Common
                 : path + Path.DirectorySeparatorChar;
         }
 
-        private static ConfigLocationInfo ParseConfigLocation(string configPath)
+        internal static ConfigLocationInfo ParseConfigLocation(string configPath)
         {
             var configDirectory = Path.GetDirectoryName(configPath);
             if (string.IsNullOrWhiteSpace(configDirectory))
@@ -2023,7 +1965,7 @@ namespace WuwaModModifier.Common
             throw new InvalidOperationException("无法从当前配置路径解析 Mod/WWMI 目标位置。");
         }
 
-        private static string BuildTargetPath(
+        internal static string BuildTargetPath(
             ConfigLocationInfo locationInfo,
             ModConfigSaveTarget saveTarget,
             string modRootPath,
@@ -2042,7 +1984,7 @@ namespace WuwaModModifier.Common
             return Path.GetFullPath(targetPath);
         }
 
-        private static bool TryParseModRelativePath(string relativePath, out ConfigLocationInfo locationInfo)
+        internal static bool TryParseModRelativePath(string relativePath, out ConfigLocationInfo locationInfo)
         {
             locationInfo = new ConfigLocationInfo();
 
@@ -2057,7 +1999,7 @@ namespace WuwaModModifier.Common
             return TryCreateLocationInfo(characterName, id, modName, segments.Skip(2).ToArray(), out locationInfo);
         }
 
-        private static bool TryParseWwmiRelativePath(string relativePath, out ConfigLocationInfo locationInfo)
+        internal static bool TryParseWwmiRelativePath(string relativePath, out ConfigLocationInfo locationInfo)
         {
             locationInfo = new ConfigLocationInfo();
 
@@ -2071,7 +2013,7 @@ namespace WuwaModModifier.Common
             return TryCreateLocationInfo(characterName, id, modName, segments.Skip(1).ToArray(), out locationInfo);
         }
 
-        private static bool TryParseConfigLocationFromHierarchy(
+        internal static bool TryParseConfigLocationFromHierarchy(
             string configDirectory,
             string fileName,
             out ConfigLocationInfo locationInfo)
@@ -2111,7 +2053,7 @@ namespace WuwaModModifier.Common
             return false;
         }
 
-        private static bool TryCreateLocationInfo(
+        internal static bool TryCreateLocationInfo(
             string characterName,
             string id,
             string modName,
@@ -2132,7 +2074,7 @@ namespace WuwaModModifier.Common
             return TryCreateLocationInfo(characterName, id, modName, relativeSubdirectory, fileName, out locationInfo);
         }
 
-        private static bool TryCreateLocationInfo(
+        internal static bool TryCreateLocationInfo(
             string characterName,
             string id,
             string modName,
@@ -2160,7 +2102,7 @@ namespace WuwaModModifier.Common
             return true;
         }
 
-        private static string GetRelativeSubdirectory(string baseDirectory, string targetDirectory)
+        internal static string GetRelativeSubdirectory(string baseDirectory, string targetDirectory)
         {
             var relativePath = Path.GetRelativePath(baseDirectory, targetDirectory);
             return relativePath.Equals(".", StringComparison.Ordinal)
@@ -2168,14 +2110,14 @@ namespace WuwaModModifier.Common
                 : relativePath;
         }
 
-        private static string[] SplitPathSegments(string path)
+        internal static string[] SplitPathSegments(string path)
         {
             return path.Split(
                 new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar },
                 StringSplitOptions.RemoveEmptyEntries);
         }
 
-        private static string CombinePathSegments(IEnumerable<string> segments)
+        internal static string CombinePathSegments(IEnumerable<string> segments)
         {
             var normalizedSegments = segments
                 .Where(segment => !string.IsNullOrWhiteSpace(segment))
@@ -2186,7 +2128,7 @@ namespace WuwaModModifier.Common
                 : Path.Combine(normalizedSegments);
         }
 
-        private sealed class ConfigLocationInfo
+        internal sealed class ConfigLocationInfo
         {
             public string CharacterName { get; set; } = string.Empty;
             public string Id { get; set; } = string.Empty;
@@ -2195,7 +2137,7 @@ namespace WuwaModModifier.Common
             public string FileName { get; set; } = string.Empty;
         }
 
-        private sealed class DrawTargetInfo
+        internal sealed class DrawTargetInfo
         {
             public ModConfigSection Section { get; set; } = null!;
             public int BlockStartIndex { get; set; }
@@ -2204,13 +2146,13 @@ namespace WuwaModModifier.Common
             public List<string> ControlExpressions { get; set; } = new List<string>();
         }
 
-        private sealed class ControlLineTarget
+        internal sealed class ControlLineTarget
         {
             public ModConfigSection Section { get; set; } = null!;
             public int StatementIndex { get; set; }
         }
 
-        private sealed class StandardToggleSlot
+        internal sealed class StandardToggleSlot
         {
             public string SectionName { get; set; } = string.Empty;
             public string VariableName { get; set; } = string.Empty;

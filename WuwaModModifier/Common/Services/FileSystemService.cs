@@ -1,4 +1,5 @@
 using System.IO;
+using System.Threading.Tasks;
 
 namespace WuwaModModifier.Common
 {
@@ -17,6 +18,8 @@ namespace WuwaModModifier.Common
 
         public string ReadAllText(string path) => File.ReadAllText(path);
 
+        public Task<string> ReadAllTextAsync(string path) => File.ReadAllTextAsync(path);
+
         public void WriteAllText(string path, string content)
         {
             var directory = Path.GetDirectoryName(path);
@@ -28,9 +31,27 @@ namespace WuwaModModifier.Common
             File.WriteAllText(path, content);
         }
 
+        public async Task WriteAllTextAsync(string path, string content)
+        {
+            var directory = Path.GetDirectoryName(path);
+            if (!string.IsNullOrWhiteSpace(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            await File.WriteAllTextAsync(path, content);
+        }
+
         public void CreateDirectory(string path) => Directory.CreateDirectory(path);
 
         public void DeleteDirectory(string path, bool recursive) => Directory.Delete(path, recursive);
+
+        public Task DeleteDirectoryAsync(string path, bool recursive)
+        {
+            if (Directory.Exists(path))
+                Directory.Delete(path, recursive);
+            return Task.CompletedTask;
+        }
 
         public void CopyDirectory(string source, string destination)
         {
@@ -53,6 +74,11 @@ namespace WuwaModModifier.Common
                 string dest = Path.Combine(destination, Path.GetFileName(folder));
                 CopyDirectory(folder, dest);
             }
+        }
+
+        public async Task CopyDirectoryAsync(string source, string destination)
+        {
+            await Task.Run(() => CopyDirectory(source, destination));
         }
     }
 }

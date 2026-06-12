@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -21,14 +22,14 @@ namespace WuwaModModifier
             New
         }
 
-        private static readonly Brush OldDiffBrush = CreateFrozenBrush(Color.FromRgb(0xF8, 0xE1, 0xD6));
-        private static readonly Brush NewDiffBrush = CreateFrozenBrush(Color.FromRgb(0xD8, 0xEF, 0xEA));
-        private static readonly Brush ResultDiffBrush = CreateFrozenBrush(Color.FromRgb(0xF5, 0xE7, 0xB5));
-        private static readonly Brush OldDiffLineBrush = CreateFrozenBrush(Color.FromArgb(0x70, 0xF8, 0xE1, 0xD6));
-        private static readonly Brush NewDiffLineBrush = CreateFrozenBrush(Color.FromArgb(0x70, 0xD8, 0xEF, 0xEA));
-        private static readonly Brush ResultDiffLineBrush = CreateFrozenBrush(Color.FromArgb(0x70, 0xF5, 0xE7, 0xB5));
-        private static readonly Brush PlaceholderLineBrush = CreateFrozenBrush(Color.FromRgb(0xE6, 0xE6, 0xE6));
-        private static readonly Brush TransparentBrush = CreateFrozenBrush(Colors.Transparent);
+        private static Brush OldDiffBrush => DiffRenderingService.OldDiffBrush;
+        private static Brush NewDiffBrush => DiffRenderingService.NewDiffBrush;
+        private static Brush ResultDiffBrush => DiffRenderingService.ResultDiffBrush;
+        private static Brush OldDiffLineBrush => DiffRenderingService.OldDiffLineBrush;
+        private static Brush NewDiffLineBrush => DiffRenderingService.NewDiffLineBrush;
+        private static Brush ResultDiffLineBrush => DiffRenderingService.ResultDiffLineBrush;
+        private static Brush PlaceholderLineBrush => DiffRenderingService.PlaceholderLineBrush;
+        private static Brush TransparentBrush => DiffRenderingService.TransparentBrush;
 
         private static readonly DependencyProperty IsPlaceholderParagraphProperty =
             DependencyProperty.RegisterAttached(
@@ -47,12 +48,12 @@ namespace WuwaModModifier
 
         public VersionSyncWindowViewModel ViewModel { get; }
 
-        public VersionSyncWindow(string? initialImportedModDirectoryPath = null)
+        public VersionSyncWindow()
         {
             InitializeComponent();
             _comparisonDifferenceLineIndices = new Dictionary<RichTextBox, IReadOnlyList<int>>();
             _comparisonDifferenceOrdinalsByLineIndex = new Dictionary<RichTextBox, IReadOnlyDictionary<int, int>>();
-            ViewModel = new VersionSyncWindowViewModel(initialImportedModDirectoryPath);
+            ViewModel = App.ServiceProvider.GetRequiredService<VersionSyncWindowViewModel>();
             DataContext = ViewModel;
             Loaded += VersionSyncWindow_Loaded;
             Closed += VersionSyncWindow_Closed;
@@ -141,7 +142,7 @@ namespace WuwaModModifier
             _isUpdatingViewModelFromResultEditor = true;
             try
             {
-                var editorText = ReadEditorText(rtbResultConfigText);
+                var editorText = DiffRenderingService.ReadEditorText(rtbResultConfigText, GetIsPlaceholderParagraph);
                 if (!string.Equals(ViewModel.ResultConfigText, editorText, StringComparison.Ordinal))
                 {
                     ViewModel.ResultConfigText = editorText;
@@ -298,7 +299,7 @@ namespace WuwaModModifier
             try
             {
                 _isUpdatingComparisonEditorsFromViewModel = true;
-                editor.Document = BuildDiffDocument(lines, diffBrush);
+                editor.Document = DiffRenderingService.BuildDiffDocument(lines, diffBrush, p => SetIsPlaceholderParagraph(p, true));
             }
             finally
             {
@@ -742,133 +743,7 @@ namespace WuwaModModifier
             return lastParagraph;
         }
 
-        private static FlowDocument BuildDiffDocument(IReadOnlyList<TextDiffHighlightLine> lines, Brush diffBrush)
-        {
-            var document = new FlowDocument
-            {
-                PagePadding = new Thickness(0),
-                ColumnWidth = 10000,
-                PageWidth = 10000,
-                FontFamily = new FontFamily("Consolas")
-            };
-
-            var paragraphStyle = new Style(typeof(Paragraph));
-            paragraphStyle.Setters.Add(new Setter(Block.MarginProperty, new Thickness(0)));
-            paragraphStyle.Setters.Add(new Setter(Block.PaddingProperty, new Thickness(0)));
-            document.Resources.Add(typeof(Paragraph), paragraphStyle);
-
-            foreach (var line in lines)
-            {
-                document.Blocks.Add(BuildParagraph(
-                    line,
-                    diffBrush,
-                    ReferenceEquals(diffBrush, OldDiffBrush)
-                        ? OldDiffLineBrush
-                        : ReferenceEquals(diffBrush, NewDiffBrush)
-                            ? NewDiffLineBrush
-                            : ResultDiffLineBrush));
-            }
-
-            if (document.Blocks.Count == 0)
-            {
-                document.Blocks.Add(new Paragraph(new Run(string.Empty))
-                {
-                    Margin = new Thickness(0),
-                    Padding = new Thickness(0)
-                });
-            }
-
-            return document;
-        }
-
-        private static Paragraph BuildParagraph(TextDiffHighlightLine line, Brush diffBrush, Brush lineDiffBrush)
-        {
-            var paragraph = new Paragraph
-            {
-                Margin = new Thickness(0),
-                Padding = new Thickness(0)
-            };
-
-            if (line.IsPlaceholder)
-            {
-                paragraph.Background = PlaceholderLineBrush;
-                SetIsPlaceholderParagraph(paragraph, true);
-                paragraph.Inlines.Add(new Run("\u00A0")
-                {
-                    Foreground = TransparentBrush,
-                    Background = TransparentBrush
-                });
-                return paragraph;
-            }
-
-            if (line.HasDifference)
-            {
-                paragraph.Background = lineDiffBrush;
-            }
-
-            if (line.Spans.Count == 0)
-            {
-                paragraph.Inlines.Add(new Run(line.Text));
-            }
-            else
-            {
-                foreach (var span in line.Spans)
-                {
-                    if (span.Text.Length == 0)
-                    {
-                        continue;
-                    }
-
-                    var run = new Run(span.Text);
-                    if (span.IsDifferent)
-                    {
-                        run.Background = diffBrush;
-                    }
-
-                    paragraph.Inlines.Add(run);
-                }
-            }
-
-            if (paragraph.Inlines.FirstInline == null)
-            {
-                paragraph.Inlines.Add(new Run(string.Empty));
-            }
-
-            return paragraph;
-        }
-
-        private static string ReadEditorText(RichTextBox editor)
-        {
-            var lines = new List<string>();
-
-            for (Block? block = editor.Document.Blocks.FirstBlock; block != null; block = block.NextBlock)
-            {
-                if (block is not Paragraph paragraph || GetIsPlaceholderParagraph(paragraph))
-                {
-                    continue;
-                }
-
-                var text = new TextRange(paragraph.ContentStart, paragraph.ContentEnd).Text;
-                lines.Add(TrimParagraphTerminator(text));
-            }
-
-            return string.Join(Environment.NewLine, lines);
-        }
-
-        private static string TrimParagraphTerminator(string text)
-        {
-            if (text.EndsWith("\r\n", StringComparison.Ordinal))
-            {
-                return text[..^2];
-            }
-
-            if (text.EndsWith("\n", StringComparison.Ordinal) || text.EndsWith("\r", StringComparison.Ordinal))
-            {
-                return text[..^1];
-            }
-
-            return text;
-        }
+        // BuildDiffDocument, BuildParagraph, ReadEditorText moved to DiffRenderingService
 
         private static bool GetIsPlaceholderParagraph(DependencyObject element)
         {
@@ -885,12 +760,7 @@ namespace WuwaModModifier
             return FindDescendant<ScrollViewer>(editor);
         }
 
-        private static Brush CreateFrozenBrush(Color color)
-        {
-            var brush = new SolidColorBrush(color);
-            brush.Freeze();
-            return brush;
-        }
+        // CreateFrozenBrush moved to DiffRenderingService
 
         private static T? FindDescendant<T>(DependencyObject? current)
             where T : DependencyObject

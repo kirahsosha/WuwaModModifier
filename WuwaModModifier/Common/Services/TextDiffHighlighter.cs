@@ -759,144 +759,119 @@ namespace WuwaModModifier.Common
 
         private static List<AlignedLinePair> BuildAlignedLinePairs(IReadOnlyList<string> sourceLines, IReadOnlyList<string> referenceLines)
         {
-            var sourceEntries = BuildAlignmentEntries(sourceLines);
-            var referenceEntries = BuildAlignmentEntries(referenceLines);
-            var lcsLengths = new int[sourceEntries.Count + 1, referenceEntries.Count + 1];
-            for (var sourceIndex = sourceEntries.Count - 1; sourceIndex >= 0; sourceIndex--)
-            {
-                for (var referenceIndex = referenceEntries.Count - 1; referenceIndex >= 0; referenceIndex--)
-                {
-                    lcsLengths[sourceIndex, referenceIndex] = AreLinesEquivalentForAlignment(sourceEntries[sourceIndex], referenceEntries[referenceIndex])
-                        ? lcsLengths[sourceIndex + 1, referenceIndex + 1] + 1
-                        : Math.Max(lcsLengths[sourceIndex + 1, referenceIndex], lcsLengths[sourceIndex, referenceIndex + 1]);
-                }
-            }
-
-            var result = new List<AlignedLinePair>();
-            var sourcePointer = 0;
-            var referencePointer = 0;
-
-            while (sourcePointer < sourceEntries.Count || referencePointer < referenceEntries.Count)
-            {
-                if (sourcePointer < sourceEntries.Count &&
-                    referencePointer < referenceEntries.Count &&
-                    AreLinesEquivalentForAlignment(sourceEntries[sourcePointer], referenceEntries[referencePointer]))
-                {
-                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, referenceEntries[referencePointer].Text));
-                    sourcePointer++;
-                    referencePointer++;
-                    continue;
-                }
-
-                if (sourcePointer < sourceEntries.Count &&
-                    referencePointer < referenceEntries.Count &&
-                    lcsLengths[sourcePointer + 1, referencePointer] == lcsLengths[sourcePointer, referencePointer + 1])
-                {
-                    var remainingSourceCount = sourceEntries.Count - sourcePointer;
-                    var remainingReferenceCount = referenceEntries.Count - referencePointer;
-
-                    if (remainingReferenceCount > remainingSourceCount)
-                    {
-                        result.Add(new AlignedLinePair(null, referenceEntries[referencePointer].Text));
-                        referencePointer++;
-                        continue;
-                    }
-
-                    if (remainingSourceCount > remainingReferenceCount)
-                    {
-                        result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, null));
-                        sourcePointer++;
-                        continue;
-                    }
-
-                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, referenceEntries[referencePointer].Text));
-                    sourcePointer++;
-                    referencePointer++;
-                    continue;
-                }
-
-                if (referencePointer >= referenceEntries.Count ||
-                    (sourcePointer < sourceEntries.Count && lcsLengths[sourcePointer + 1, referencePointer] >= lcsLengths[sourcePointer, referencePointer + 1]))
-                {
-                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, null));
-                    sourcePointer++;
-                    continue;
-                }
-
-                result.Add(new AlignedLinePair(null, referenceEntries[referencePointer].Text));
-                referencePointer++;
-            }
-
-            return result;
+            return BuildAlignedLinePairsCore(sourceLines, referenceLines, useReplacementTieBreak: false);
         }
 
         private static List<AlignedLinePair> BuildAlignedLinePairsForReplacement(IReadOnlyList<string> sourceLines, IReadOnlyList<string> referenceLines)
         {
+            return BuildAlignedLinePairsCore(sourceLines, referenceLines, useReplacementTieBreak: true);
+        }
+
+        /// <summary>
+        /// Shared LCS-based alignment core.  When <paramref name="useReplacementTieBreak"/>
+        /// is <c>true</c> the tie-breaking favours look-ahead equivalence checks (used by
+        /// the replacement path); otherwise it falls back on remaining-line-count heuristics.
+        /// </summary>
+        private static List<AlignedLinePair> BuildAlignedLinePairsCore(
+            IReadOnlyList<string> sourceLines,
+            IReadOnlyList<string> referenceLines,
+            bool useReplacementTieBreak)
+        {
             var sourceEntries = BuildAlignmentEntries(sourceLines);
             var referenceEntries = BuildAlignmentEntries(referenceLines);
+
+            // ── DP table (standard LCS) ──
             var lcsLengths = new int[sourceEntries.Count + 1, referenceEntries.Count + 1];
-            for (var sourceIndex = sourceEntries.Count - 1; sourceIndex >= 0; sourceIndex--)
+            for (var si = sourceEntries.Count - 1; si >= 0; si--)
             {
-                for (var referenceIndex = referenceEntries.Count - 1; referenceIndex >= 0; referenceIndex--)
+                for (var ri = referenceEntries.Count - 1; ri >= 0; ri--)
                 {
-                    lcsLengths[sourceIndex, referenceIndex] = AreLinesEquivalentForAlignment(sourceEntries[sourceIndex], referenceEntries[referenceIndex])
-                        ? lcsLengths[sourceIndex + 1, referenceIndex + 1] + 1
-                        : Math.Max(lcsLengths[sourceIndex + 1, referenceIndex], lcsLengths[sourceIndex, referenceIndex + 1]);
+                    lcsLengths[si, ri] = AreLinesEquivalentForAlignment(sourceEntries[si], referenceEntries[ri])
+                        ? lcsLengths[si + 1, ri + 1] + 1
+                        : Math.Max(lcsLengths[si + 1, ri], lcsLengths[si, ri + 1]);
                 }
             }
 
+            // ── Backtrack ──
             var result = new List<AlignedLinePair>();
-            var sourcePointer = 0;
-            var referencePointer = 0;
+            var sp = 0;
+            var rp = 0;
 
-            while (sourcePointer < sourceEntries.Count || referencePointer < referenceEntries.Count)
+            while (sp < sourceEntries.Count || rp < referenceEntries.Count)
             {
-                if (sourcePointer < sourceEntries.Count &&
-                    referencePointer < referenceEntries.Count &&
-                    AreLinesEquivalentForAlignment(sourceEntries[sourcePointer], referenceEntries[referencePointer]))
+                // Direct match
+                if (sp < sourceEntries.Count && rp < referenceEntries.Count &&
+                    AreLinesEquivalentForAlignment(sourceEntries[sp], referenceEntries[rp]))
                 {
-                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, referenceEntries[referencePointer].Text));
-                    sourcePointer++;
-                    referencePointer++;
+                    result.Add(new AlignedLinePair(sourceEntries[sp].Text, referenceEntries[rp].Text));
+                    sp++;
+                    rp++;
                     continue;
                 }
 
-                if (sourcePointer < sourceEntries.Count &&
-                    referencePointer < referenceEntries.Count &&
-                    lcsLengths[sourcePointer + 1, referencePointer] == lcsLengths[sourcePointer, referencePointer + 1])
+                // Equal LCS score → resolve the tie
+                if (sp < sourceEntries.Count && rp < referenceEntries.Count &&
+                    lcsLengths[sp + 1, rp] == lcsLengths[sp, rp + 1])
                 {
-                    if (referencePointer + 1 < referenceEntries.Count &&
-                        AreLinesEquivalentForAlignment(sourceEntries[sourcePointer], referenceEntries[referencePointer + 1]))
+                    if (useReplacementTieBreak)
                     {
-                        result.Add(new AlignedLinePair(null, referenceEntries[referencePointer].Text));
-                        referencePointer++;
+                        if (rp + 1 < referenceEntries.Count &&
+                            AreLinesEquivalentForAlignment(sourceEntries[sp], referenceEntries[rp + 1]))
+                        {
+                            result.Add(new AlignedLinePair(null, referenceEntries[rp].Text));
+                            rp++;
+                            continue;
+                        }
+
+                        if (sp + 1 < sourceEntries.Count &&
+                            AreLinesEquivalentForAlignment(sourceEntries[sp + 1], referenceEntries[rp]))
+                        {
+                            result.Add(new AlignedLinePair(sourceEntries[sp].Text, null));
+                            sp++;
+                            continue;
+                        }
+
+                        result.Add(new AlignedLinePair(sourceEntries[sp].Text, referenceEntries[rp].Text));
+                        sp++;
+                        rp++;
                         continue;
                     }
 
-                    if (sourcePointer + 1 < sourceEntries.Count &&
-                        AreLinesEquivalentForAlignment(sourceEntries[sourcePointer + 1], referenceEntries[referencePointer]))
+                    var remainingSource = sourceEntries.Count - sp;
+                    var remainingRef = referenceEntries.Count - rp;
+
+                    if (remainingRef > remainingSource)
                     {
-                        result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, null));
-                        sourcePointer++;
+                        result.Add(new AlignedLinePair(null, referenceEntries[rp].Text));
+                        rp++;
                         continue;
                     }
 
-                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, referenceEntries[referencePointer].Text));
-                    sourcePointer++;
-                    referencePointer++;
+                    if (remainingSource > remainingRef)
+                    {
+                        result.Add(new AlignedLinePair(sourceEntries[sp].Text, null));
+                        sp++;
+                        continue;
+                    }
+
+                    result.Add(new AlignedLinePair(sourceEntries[sp].Text, referenceEntries[rp].Text));
+                    sp++;
+                    rp++;
                     continue;
                 }
 
-                if (referencePointer >= referenceEntries.Count ||
-                    (sourcePointer < sourceEntries.Count && lcsLengths[sourcePointer + 1, referencePointer] >= lcsLengths[sourcePointer, referencePointer + 1]))
+                // Delete source line
+                if (rp >= referenceEntries.Count ||
+                    (sp < sourceEntries.Count && lcsLengths[sp + 1, rp] >= lcsLengths[sp, rp + 1]))
                 {
-                    result.Add(new AlignedLinePair(sourceEntries[sourcePointer].Text, null));
-                    sourcePointer++;
+                    result.Add(new AlignedLinePair(sourceEntries[sp].Text, null));
+                    sp++;
                     continue;
                 }
 
-                result.Add(new AlignedLinePair(null, referenceEntries[referencePointer].Text));
-                referencePointer++;
+                // Insert reference line
+                result.Add(new AlignedLinePair(null, referenceEntries[rp].Text));
+                rp++;
             }
 
             return result;

@@ -934,7 +934,10 @@ namespace UnitTests
         {
             var fileSystem = new FileSystemService();
             var discoveryService = new ModConfigDiscoveryService(fileSystem);
-            return new ModConfigVersionSyncService(fileSystem, discoveryService);
+            var parser = new ModConfigParser(fileSystem);
+            var analysis = new ModConfigAnalysisService(parser);
+            var update = new ModConfigUpdateService(fileSystem, parser, analysis);
+            return new ModConfigVersionSyncService(fileSystem, discoveryService, parser, analysis, update);
         }
 
         private static string CreateTempRoot()

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using WuwaModModifier.Common.Helpers;
 using WuwaModModifier.Model;
 
 namespace WuwaModModifier.Common
@@ -20,10 +21,15 @@ namespace WuwaModModifier.Common
             new Regex(@"(?<var>\$[^\s=,()!<>]+)\s*(==|=)\s*(?<value>[-+]?\d+(?:\.\d+)?)", RegexOptions.Compiled);
 
         private readonly IModConfigParser _parser;
+        private static ISystemVariableStrategy _systemVariableStrategy = new DefaultSystemVariableStrategy();
 
-        public ModConfigAnalysisService(IModConfigParser parser)
+        public ModConfigAnalysisService(IModConfigParser parser, ISystemVariableStrategy? systemVariableStrategy = null)
         {
             _parser = parser;
+            if (systemVariableStrategy is not null)
+            {
+                _systemVariableStrategy = systemVariableStrategy;
+            }
         }
 
         public ModConfigAnalysisResult Analyze(ModConfigDocument document)
@@ -175,7 +181,7 @@ namespace WuwaModModifier.Common
 
         private static bool IsKeySection(string sectionName)
         {
-            return sectionName.StartsWith("Key", StringComparison.OrdinalIgnoreCase);
+            return ModConfigSectionHelpers.IsKeySection(sectionName);
         }
 
         private static List<string> SplitValues(string rawValue)
@@ -253,15 +259,7 @@ namespace WuwaModModifier.Common
 
         private static bool IsInternalSystemVariable(string variableName)
         {
-            return variableName.StartsWith("$required_", StringComparison.OrdinalIgnoreCase) ||
-                variableName.StartsWith("$object_", StringComparison.OrdinalIgnoreCase) ||
-                variableName.StartsWith("$mesh_", StringComparison.OrdinalIgnoreCase) ||
-                variableName.StartsWith("$shapekey_", StringComparison.OrdinalIgnoreCase) ||
-                variableName.StartsWith("$merge_status", StringComparison.OrdinalIgnoreCase) ||
-                variableName.IndexOf("\\WWMIv1\\", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                variableName.Equals("$mod_id", StringComparison.OrdinalIgnoreCase) ||
-                variableName.Equals("$state_id", StringComparison.OrdinalIgnoreCase) ||
-                variableName.Equals("$mod_enabled", StringComparison.OrdinalIgnoreCase);
+            return _systemVariableStrategy.IsInternalSystemVariable(variableName);
         }
 
         private static List<ModVisibilityItem> BuildVisibilityItems(
@@ -761,27 +759,7 @@ namespace WuwaModModifier.Common
 
         private static void UpdateControlStack(Stack<string> controlStack, string rawText)
         {
-            if (rawText.StartsWith("if ", StringComparison.OrdinalIgnoreCase))
-            {
-                controlStack.Push(rawText.Substring(2).Trim());
-                return;
-            }
-
-            if (rawText.StartsWith("elif ", StringComparison.OrdinalIgnoreCase))
-            {
-                if (controlStack.Count > 0)
-                {
-                    controlStack.Pop();
-                }
-
-                controlStack.Push(rawText.Substring(4).Trim());
-                return;
-            }
-
-            if (rawText.Equals("endif", StringComparison.OrdinalIgnoreCase) && controlStack.Count > 0)
-            {
-                controlStack.Pop();
-            }
+            ModConfigSectionHelpers.UpdateControlStack(controlStack, rawText);
         }
 
         private static IEnumerable<string> GetDrawLabels(ModConfigSection section)
@@ -802,17 +780,7 @@ namespace WuwaModModifier.Common
 
         private static bool TryGetDrawLabel(string rawText, out string drawLabel)
         {
-            drawLabel = string.Empty;
-
-            var trimmed = rawText.Trim();
-            if (!trimmed.StartsWith("; Draw ", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.StartsWith("; Draw skipped", StringComparison.OrdinalIgnoreCase))
-            {
-                return false;
-            }
-
-            drawLabel = trimmed.TrimStart(';').Trim();
-            return !string.IsNullOrWhiteSpace(drawLabel);
+            return ModConfigSectionHelpers.TryGetDrawLabel(rawText, out drawLabel);
         }
 
         private static string GetAssignmentValue(ModConfigSection section, string name)

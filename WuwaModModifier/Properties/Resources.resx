@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <!-- ═══ Status messages ═══ -->
+  <data name="StatusSelectModForAnalysis" xml:space="preserve">
+    <value>请选择具体 MOD 查看配置分析。</value>
+  </data>
+  <data name="StatusSelectCharacterDirectory" xml:space="preserve">
+    <value>当前选择的是角色目录，请选择具体 MOD。</value>
+  </data>
+  <data name="StatusNoEditableConfig" xml:space="preserve">
+    <value>当前无可编辑配置。</value>
+  </data>
+  <data name="StatusNoConfigSelected" xml:space="preserve">
+    <value>当前未选择配置文件。</value>
+  </data>
+  <data name="StatusModDirectoryNotExists" xml:space="preserve">
+    <value>所选 MOD 目录不存在。</value>
+  </data>
+  <data name="StatusAnalysisFailed" xml:space="preserve">
+    <value>配置分析失败。</value>
+  </data>
+
+  <!-- ═══ Sync / save status ═══ -->
+  <data name="StatusUnsavedChanges" xml:space="preserve">
+    <value>当前显示{0}，右侧原文有未保存修改，请使用下方四个按钮保存或同步。</value>
+  </data>
+  <data name="StatusSynced" xml:space="preserve">
+    <value>当前显示{0}，右侧原文与当前来源文件一致。</value>
+  </data>
+  <data name="StatusBufferLoaded" xml:space="preserve">
+    <value>已加载{0}缓冲区。</value>
+  </data>
+  <data name="StatusPendingChanges" xml:space="preserve">
+    <value>当前工作内容仍有未写回{0}的改动。</value>
+  </data>
+  <data name="StatusInSync" xml:space="preserve">
+    <value>当前工作内容与{0}一致。</value>
+  </data>
+
+  <!-- ═══ MOD management ═══ -->
+  <data name="ModsFoundCount" xml:space="preserve">
+    <value>共找到 {0} 名角色共 {1} 个 MOD。</value>
+  </data>
+  <data name="ModsNotFound" xml:space="preserve">
+    <value>未找到 MOD。</value>
+  </data>
+  <data name="ModsDeletedCount" xml:space="preserve">
+    <value>共删除 {0} 个MOD。</value>
+  </data>
+  <data name="ModsLoadedCount" xml:space="preserve">
+    <value>共删除 {0} 个MOD,加载 {1} 个MOD。</value>
+  </data>
+  <data name="ModsLoadFailed" xml:space="preserve">
+    <value>加载新MOD失败。</value>
+  </data>
+  <data name="ModsDeleteFailed" xml:space="preserve">
+    <value>删除已安装MOD失败。</value>
+  </data>
+
+  <!-- ═══ Config source ═══ -->
+  <data name="ConfigSourceSwitchToWwmi" xml:space="preserve">
+    <value>切换显示WWMI配置</value>
+  </data>
+  <data name="ConfigSourceSwitchToMod" xml:space="preserve">
+    <value>切换显示Mod配置</value>
+  </data>
+  <data name="ConfigUnsavedSwitchWarning" xml:space="preserve">
+    <value>当前配置仍有未保存改动，请先使用右侧四个按钮保存或同步后再切换候选配置。</value>
+  </data>
+
+  <!-- ═══ Visibility binding ═══ -->
+  <data name="VisibilityBindingAvailable" xml:space="preserve">
+    <value>当前支持为模型显示项建立或更改绑定。</value>
+  </data>
+  <data name="VisibilityBindingUnbound" xml:space="preserve">
+    <value>当前项未绑定控制参数，可绑定到现有按键及参数，或新建一对参数+按键。</value>
+  </data>
+  <data name="VisibilityBindingBound" xml:space="preserve">
+    <value>当前项已绑定控制参数，可直接应用模型显示修改，或新建一对参数+按键来更改当前绑定。</value>
+  </data>
+  <data name="VisibilityBindingNotApplicable" xml:space="preserve">
+    <value>当前项不满足自动绑定条件。</value>
+  </data>
+
+  <!-- ═══ Wwmi config ═══ -->
+  <data name="WwmiMainConfigNotFound" xml:space="preserve">
+    <value>未找到 WWMI 主配置文件。</value>
+  </data>
+  <data name="MainConfigNotFound" xml:space="preserve">
+    <value>未找到主配置文件。</value>
+  </data>
+
+  <!-- ═══ File I/O ═══ -->
+  <data name="WillOverwriteTarget" xml:space="preserve">
+    <value>将覆盖已有文件</value>
+  </data>
+  <data name="WillCreateTarget" xml:space="preserve">
+    <value>将创建新文件</value>
+  </data>
+
+  <!-- ═══ Version sync ═══ -->
+  <data name="VersionSyncNoImport" xml:space="preserve">
+    <value>未从主窗口导入角色目录，请返回主窗口选择角色目录后重新打开。</value>
+  </data>
+  <data name="VersionSyncImporting" xml:space="preserve">
+    <value>已从主窗口导入角色目录，正在自动生成版本同步配对。</value>
+  </data>
+  <data name="VersionSyncNoBatchYet" xml:space="preserve">
+    <value>尚未批量应用作业。</value>
+  </data>
+
+  <!-- ═══ Dialog captions ═══ -->
+  <data name="DialogCaptionConfigSwitch" xml:space="preserve">
+    <value>切换候选配置</value>
+  </data>
+  <data name="DialogCaptionVersionSync" xml:space="preserve">
+    <value>版本同步</value>
+  </data>
+  <data name="DialogCaptionManualPairing" xml:space="preserve">
+    <value>手动配对</value>
+  </data>
+  <data name="DialogManualPairingSelectBoth" xml:space="preserve">
+    <value>请分别选择旧版和新版目录。</value>
+  </data>
+  <data name="DialogManualPairingSameDir" xml:space="preserve">
+    <value>旧版和新版不能选择同一个目录。</value>
+  </data>
+
+  <!-- ═══ Standardization ═══ -->
+  <data name="StandardizationFully" xml:space="preserve">
+    <value>完全标准化</value>
+  </data>
+  <data name="StandardizationPartially" xml:space="preserve">
+    <value>部分标准化</value>
+  </data>
+  <data name="StandardizationSkipped" xml:space="preserve">
+    <value>跳过</value>
+  </data>
+
+  <!-- ═══ Generic ═══ -->
+  <data name="GenericNoDifference" xml:space="preserve">
+    <value>无差异</value>
+  </data>
+  <data name="GenericCandidateSwitchFailed" xml:space="preserve">
+    <value>切换候选配置失败。</value>
+  </data>
+</root>

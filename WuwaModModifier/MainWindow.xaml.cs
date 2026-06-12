@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -27,7 +28,7 @@ namespace WuwaModModifier
         public MainWindow()
         {
             InitializeComponent();
-            ViewModel = new MainViewModel();
+            ViewModel = App.ServiceProvider.GetRequiredService<MainViewModel>();
             DataContext = ViewModel;
             ViewModel.PropertyChanged += ViewModel_PropertyChanged;
             RenderRawConfigEditor();
@@ -290,11 +291,6 @@ namespace WuwaModModifier
             return source as T;
         }
 
-        private void btnRandomLoadAllMods_Click()
-        {
-
-        }
-
         private void btnOpenVersionSync_Click(object sender, RoutedEventArgs e)
         {
             if (!ViewModel.CanOpenVersionSync)
@@ -302,10 +298,11 @@ namespace WuwaModModifier
                 return;
             }
 
-            var window = new VersionSyncWindow(ViewModel.SelectedVersionSyncDirectoryPath)
+            var window = new VersionSyncWindow
             {
                 Owner = this
             };
+            window.ViewModel.SetImportedDirectory(ViewModel.SelectedVersionSyncDirectoryPath);
 
             window.ShowDialog();
         }

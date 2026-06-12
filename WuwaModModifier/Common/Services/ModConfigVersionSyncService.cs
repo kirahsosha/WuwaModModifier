@@ -19,16 +19,16 @@ namespace WuwaModModifier.Common
 
         public ModConfigVersionSyncService(
             IFileSystemService fileSystem,
-            IModConfigDiscoveryService? configDiscoveryService = null,
-            IModConfigParser? configParser = null,
-            IModConfigAnalysisService? configAnalysisService = null,
-            IModConfigUpdateService? configUpdateService = null)
+            IModConfigDiscoveryService configDiscoveryService,
+            IModConfigParser configParser,
+            IModConfigAnalysisService configAnalysisService,
+            IModConfigUpdateService configUpdateService)
         {
             _fileSystem = fileSystem;
-            _configDiscoveryService = configDiscoveryService ?? new ModConfigDiscoveryService(fileSystem);
-            _configParser = configParser ?? new ModConfigParser(fileSystem);
-            _configAnalysisService = configAnalysisService ?? new ModConfigAnalysisService(_configParser);
-            _configUpdateService = configUpdateService ?? new ModConfigUpdateService(fileSystem, _configParser, _configAnalysisService);
+            _configDiscoveryService = configDiscoveryService;
+            _configParser = configParser;
+            _configAnalysisService = configAnalysisService;
+            _configUpdateService = configUpdateService;
         }
 
         public IReadOnlyList<VersionSyncFolderCandidate> DiscoverModCandidates(string modRootPath)

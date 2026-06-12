@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.RegularExpressions;
+using WuwaModModifier.Common.Helpers;
 using WuwaModModifier.Model;
 
 namespace WuwaModModifier.Common
@@ -168,9 +169,7 @@ namespace WuwaModModifier.Common
 
         private static string NormalizeLineEndings(string content)
         {
-            return (content ?? string.Empty)
-                .Replace("\r\n", "\n", StringComparison.Ordinal)
-                .Replace('\r', '\n');
+            return TextHelper.NormalizeLineEndings(content);
         }
     }
 }

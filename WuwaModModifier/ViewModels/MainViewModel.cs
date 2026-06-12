@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -7,29 +7,27 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Data;
 using WuwaModModifier.Common;
+using WuwaModModifier.Common.Helpers;
 using WuwaModModifier.Model;
 using WuwaModModifier.Data.ViewModels;
 
 namespace WuwaModModifier.ViewModels
 {
-    public class MainViewModel : ViewModelBase
+    public class MainViewModel : ViewModelBase, IMainViewModelSession
     {
-        private enum VisibilityBindingMode
-        {
-            ExistingParameter,
-            ExistingToggle,
-            NewParameterAndToggle,
-            RemoveExistingBinding
-        }
+        // ── Sub-ViewModels (R-02 extraction) ──
 
-        private enum ToggleCreationMode
-        {
-            ExistingParameter,
-            NewParameter
-        }
+        internal ParameterManagerViewModel ParameterManager { get; }
+        internal SyncManagerViewModel SyncManager { get; }
+        internal ToggleManagerViewModel ToggleManager { get; }
+        internal VisibilityManagerViewModel VisibilityManager { get; }
+        internal StandardizationViewModel Standardization { get; }
+        internal ModDirectoryViewModel ModDirectory { get; }
+        internal ConfigEditorViewModel ConfigEditor { get; }
 
         private readonly IFileSystemService _fileSystem;
         private readonly IMessageService _messages;
+        private readonly IAppConfigService _appConfig;
         private readonly IModConfigDiscoveryService _configDiscoveryService;
         private readonly IModConfigAnalysisService _configAnalysisService;
         private readonly IModConfigParser _configParser;
@@ -71,7 +69,7 @@ namespace WuwaModModifier.ViewModels
         private ConfigParameterSummaryItem? _selectedParameterItem;
         private ConfigVisibilitySummaryItem? _selectedVisibilityItem;
         private ConfigParameterSummaryItem? _selectedToggleCreationParameter;
-        private object? _selectedVisibilityBindingParameter;
+        private IVisibilityBindingTarget? _selectedVisibilityBindingParameter;
         private ConfigToggleSummaryItem? _selectedVisibilityBindingToggle;
         private string _toggleKeyBindingEditorText;
         private string _toggleCreationNewParameterName;
@@ -90,50 +88,45 @@ namespace WuwaModModifier.ViewModels
         private ModConfigSaveTarget _selectedConfigSource;
         private ToggleCreationMode _selectedToggleCreationMode;
         private VisibilityBindingMode _selectedVisibilityBindingMode;
-        private bool _isUpdatingSelectedConfigCandidate;
-
-        public MainViewModel()
-            : this(
-                new FileSystemService(),
-                new MessageService(),
-                null,
-                null,
-                null,
-                null)
-        {
-        }
-
-        public MainViewModel(IFileSystemService fileSystem, IMessageService messages)
-            : this(fileSystem, messages, null, null, null, null)
-        {
-        }
+        private int _updatingSelectedConfigCandidateDepth;
 
         public MainViewModel(
             IFileSystemService fileSystem,
             IMessageService messages,
-            IModConfigDiscoveryService? configDiscoveryService,
-            IModConfigAnalysisService? configAnalysisService,
-            IModConfigParser? configParser,
-            IModConfigUpdateService? configUpdateService)
+            IAppConfigService appConfig,
+            IModConfigDiscoveryService configDiscoveryService,
+            IModConfigAnalysisService configAnalysisService,
+            IModConfigParser configParser,
+            IModConfigUpdateService configUpdateService)
         {
             _fileSystem = fileSystem;
             _messages = messages;
-            _configDiscoveryService = configDiscoveryService ?? new ModConfigDiscoveryService(fileSystem);
-            _configParser = configParser ?? new ModConfigParser(fileSystem);
-            _configAnalysisService = configAnalysisService ?? new ModConfigAnalysisService(_configParser);
-            _configUpdateService = configUpdateService ?? new ModConfigUpdateService(fileSystem, _configParser, _configAnalysisService);
+            _appConfig = appConfig;
+            _configDiscoveryService = configDiscoveryService;
+            _configParser = configParser;
+            _configAnalysisService = configAnalysisService;
+            _configUpdateService = configUpdateService;
 
-            _modFolderPath = AppConfig.DefaultModPath;
-            _wwmiFolderPath = AppConfig.DefaultWwmiPath;
+            // ── Initialize sub-ViewModels (R-02) ──
+            ParameterManager = new ParameterManagerViewModel(this, configUpdateService, messages);
+            SyncManager = new SyncManagerViewModel(this, fileSystem, messages, appConfig, configUpdateService);
+            ToggleManager = new ToggleManagerViewModel(this, configUpdateService, messages);
+            VisibilityManager = new VisibilityManagerViewModel(this, configUpdateService, configAnalysisService, messages);
+            Standardization = new StandardizationViewModel(this, fileSystem, configUpdateService, configDiscoveryService, messages);
+            ModDirectory = new ModDirectoryViewModel(this, fileSystem, messages, appConfig, configDiscoveryService);
+            ConfigEditor = new ConfigEditorViewModel(this, fileSystem, configParser, configAnalysisService, configUpdateService, configDiscoveryService, messages);
+
+            _modFolderPath = _appConfig.DefaultModPath;
+            _wwmiFolderPath = _appConfig.DefaultWwmiPath;
             _modPathLoadStatusText = string.Empty;
             _wwmiPathLoadStatusText = string.Empty;
-            _otherFolderPath = AppConfig.OtherFolderPath;
+            _otherFolderPath = _appConfig.OtherFolderPath;
             _selectedConfigPath = string.Empty;
             _selectedConfigCandidatesText = string.Empty;
             _selectedConfigCandidates = new ObservableCollection<ConfigCandidateOption>();
             _selectedConfigCandidatePath = null;
-            _selectedConfigAnalysisStatus = "请选择具体 MOD 查看配置分析。";
-            _selectedConfigEditStatus = "当前无可编辑配置。";
+            _selectedConfigAnalysisStatus = Properties.Resources.StatusSelectModForAnalysis;
+            _selectedConfigEditStatus = Properties.Resources.StatusNoEditableConfig;
             _standardToggleTemplatePath = ResolveDefaultStandardToggleTemplatePath();
             _hasPendingConfigChanges = false;
             _ignoreWeapon = true;
@@ -179,8 +172,8 @@ namespace WuwaModModifier.ViewModels
             ApplyStandardizationCommand = new RelayCommand(ExecuteApplyStandardization, CanApplyStandardization);
             ApplyToggleKeyBindingsCommand = new RelayCommand(ExecuteApplyToggleKeyBindings, CanApplyToggleKeyBindings);
             CreateToggleCommand = new RelayCommand(ExecuteCreateToggle, CanCreateToggle);
-            RenameParameterCommand = new RelayCommand(ExecuteRenameParameter, CanRenameParameter);
-            CreateParameterCommand = new RelayCommand(ExecuteCreateParameter, CanCreateParameter);
+            RenameParameterCommand = ParameterManager.RenameParameterCommand;
+            CreateParameterCommand = ParameterManager.CreateParameterCommand;
             ApplyVisibilityChangeCommand = new RelayCommand(ExecuteApplyVisibilityChange, CanApplyVisibilityChange);
             ApplyVisibilityBindingCommand = new RelayCommand(ExecuteApplyVisibilityBinding, CanApplyVisibilityBinding);
             ToggleConfigSourceCommand = new RelayCommand(ExecuteToggleConfigSource, CanToggleConfigSource);
@@ -249,7 +242,7 @@ namespace WuwaModModifier.ViewModels
             get => _selectedConfigCandidatePath;
             set
             {
-                if (!SetProperty(ref _selectedConfigCandidatePath, value) || _isUpdatingSelectedConfigCandidate)
+                if (!SetProperty(ref _selectedConfigCandidatePath, value) || _updatingSelectedConfigCandidateDepth > 0)
                 {
                     return;
                 }
@@ -316,6 +309,34 @@ namespace WuwaModModifier.ViewModels
 
         public string SyncWwmiToModPreviewText => GetSyncPreviewText(ModConfigSyncDirection.WwmiToMod);
 
+        // ── IMainViewModelSession explicit interface implementation ──
+        // Keep original methods private (for test reflection compatibility)
+        // while exposing them publicly only via the interface.
+
+        ModConfigEditBuffer? IMainViewModelSession.CurrentBuffer => _selectedConfigBuffer;
+        ModConfigSaveTarget IMainViewModelSession.CurrentConfigSource => _selectedConfigSource;
+        string IMainViewModelSession.StandardToggleTemplatePath => _standardToggleTemplatePath;
+        ObservableCollection<ConfigToggleSummaryItem> IMainViewModelSession.SelectedToggleItems => _selectedToggleItems;
+
+        void IMainViewModelSession.ApplyBufferAnalysis(
+            ModConfigEditBuffer buffer, string editStatus,
+            string? preferredToggleSection, string? preferredParameterName,
+            string? preferredVisibilitySection, string? preferredVisibilityLabel)
+        {
+            ApplyBufferAnalysis(buffer, editStatus, preferredToggleSection,
+                preferredParameterName, preferredVisibilitySection, preferredVisibilityLabel);
+        }
+
+        void IMainViewModelSession.ClearStandardizationResults() => ClearStandardizationResults();
+        void IMainViewModelSession.AppendModificationHistory(string op, string target, string summary) => AppendModificationHistory(op, target, summary);
+        void IMainViewModelSession.RequestRawConfigNavigation(int line) => RequestRawConfigNavigation(line);
+        void IMainViewModelSession.ClearAnalysisCollections() => ClearAnalysisCollections();
+        void IMainViewModelSession.ClearConfigEditingState() => ClearConfigEditingState();
+        void IMainViewModelSession.RefreshSelectedConfigAnalysis() => RefreshSelectedConfigAnalysis();
+        void IMainViewModelSession.OnPathPreviewChanged() => OnPathPreviewChanged();
+
+        // ── Config state ──
+
         public bool HasPendingConfigChanges
         {
             get => _hasPendingConfigChanges;
@@ -340,8 +361,8 @@ namespace WuwaModModifier.ViewModels
             : "WWMI配置";
 
         public string ToggleConfigSourceButtonText => _selectedConfigSource == ModConfigSaveTarget.ModDirectory
-            ? "切换显示WWMI配置"
-            : "切换显示Mod配置";
+            ? Properties.Resources.ConfigSourceSwitchToWwmi
+            : Properties.Resources.ConfigSourceSwitchToMod;
 
         public string StandardToggleTemplatePath
         {
@@ -435,6 +456,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _hideInternalSystemParameters, value))
                 {
+                    ParameterManager.HideInternalSystemParameters = value;
                     RefreshSelectedParameterItemsView();
                 }
             }
@@ -459,6 +481,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _selectedToggleItem, value))
                 {
+                    ToggleManager.SelectedToggleItem = value;
                     ToggleKeyBindingEditorText = value == null
                         ? string.Empty
                         : string.Join(Environment.NewLine, SplitEditorValues(value.KeyBindingsText));
@@ -477,6 +500,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _selectedParameterItem, value))
                 {
+                    ParameterManager.SelectedParameterItem = value;
                     ParameterRenameText = value?.Name ?? string.Empty;
                     if (value != null && value.CanCreateToggleBinding)
                     {
@@ -499,6 +523,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _selectedVisibilityItem, value))
                 {
+                    VisibilityManager.SelectedVisibilityItem = value;
                     if (value != null)
                     {
                         RequestRawConfigNavigation(value.NavigateLine);
@@ -522,7 +547,7 @@ namespace WuwaModModifier.ViewModels
             }
         }
 
-        public object? SelectedVisibilityBindingParameter
+        public IVisibilityBindingTarget? SelectedVisibilityBindingParameter
         {
             get => _selectedVisibilityBindingParameter;
             set
@@ -553,6 +578,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _toggleKeyBindingEditorText, value))
                 {
+                    ToggleManager.ToggleKeyBindingEditorText = value;
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -565,6 +591,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _toggleCreationNewParameterName, value))
                 {
+                    ToggleManager.ToggleCreationNewParameterName = value;
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -577,6 +604,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _toggleCreationKeyBindingsText, value))
                 {
+                    ToggleManager.ToggleCreationKeyBindingsText = value;
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -589,6 +617,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _parameterRenameText, value))
                 {
+                    ParameterManager.ParameterRenameText = value;
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -601,6 +630,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SetProperty(ref _parameterCreationName, value))
                 {
+                    ParameterManager.ParameterCreationName = value;
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -655,7 +685,7 @@ namespace WuwaModModifier.ViewModels
             {
                 if (SelectedVisibilityItem == null)
                 {
-                    return "当前支持为模型显示项建立或更改绑定。";
+                    return Properties.Resources.VisibilityBindingAvailable;
                 }
 
                 if (SelectedVisibilityItem.CanBindSafely)
@@ -794,15 +824,26 @@ namespace WuwaModModifier.ViewModels
         /// </summary>
         private void ExecuteBtnWwmiPath()
         {
+            var savedSelection = SelectedDirectoryItem;
+            var savedConfigCandidatePath = SelectedConfigCandidatePath;
+
             if (GetWwmi(out var modCount))
             {
-                // 选中已加载的MOD
                 SelectLoadedMods();
                 WwmiPathLoadStatusText = $"共找到 {modCount} 个 MOD。";
             }
             else
             {
                 WwmiPathLoadStatusText = "未找到 MOD。";
+            }
+
+            if (savedSelection != null)
+            {
+                SelectedDirectoryItem = DirectoryItems
+                    .SelectMany(c => c.Children)
+                    .FirstOrDefault(item =>
+                        item.FullPath.Equals(savedSelection.FullPath, StringComparison.OrdinalIgnoreCase));
+                SetSelectedConfigCandidatePathInternal(savedConfigCandidatePath);
             }
         }
 
@@ -811,13 +852,13 @@ namespace WuwaModModifier.ViewModels
         /// </summary>
         private void ExecuteBtnClearAllMods()
         {
-            if (ClearWwmi(out var modCount))
+            if (ClearWwmi(out _))
             {
-                _messages.ShowInfo($"共删除 {modCount} 个MOD。");
+                ExecuteBtnWwmiPath();
             }
             else
             {
-                _messages.ShowInfo("未找到MOD。");
+                WwmiPathLoadStatusText = "清空失败。";
             }
         }
 
@@ -830,20 +871,22 @@ namespace WuwaModModifier.ViewModels
             {
                 if (RandomLoadMods(out var newModCount, out var loadedMods))
                 {
-                    _messages.ShowInfo($"共删除 {oldModCount} 个MOD,加载 {newModCount} 个MOD。");
                     _wwmiMods = loadedMods;
-                    // 选中加载的MOD
                     SelectRandomLoadedMods(loadedMods);
                 }
                 else
                 {
-                    _messages.ShowError("加载新MOD失败。");
+                    WwmiPathLoadStatusText = "加载新MOD失败。";
+                    return;
                 }
             }
             else
             {
-                _messages.ShowError("删除已安装MOD失败。");
+                WwmiPathLoadStatusText = "清空已安装MOD失败。";
+                return;
             }
+
+            ExecuteBtnWwmiPath();
         }
 
         /// <summary>
@@ -852,6 +895,7 @@ namespace WuwaModModifier.ViewModels
         private void ExecuteBtnLoadSelectedMods()
         {
             LoadSelectedMods();
+            ExecuteBtnWwmiPath();
         }
 
         private void RefreshSelectedConfigAnalysis()
@@ -868,19 +912,19 @@ namespace WuwaModModifier.ViewModels
             var selectedItem = SelectedDirectoryItem;
             if (selectedItem == null)
             {
-                SelectedConfigAnalysisStatus = "请选择具体 MOD 查看配置分析。";
+                SelectedConfigAnalysisStatus = Properties.Resources.StatusSelectModForAnalysis;
                 return;
             }
 
             if (selectedItem.IsDirectory)
             {
-                SelectedConfigAnalysisStatus = "当前选择的是角色目录，请选择具体 MOD。";
+                SelectedConfigAnalysisStatus = Properties.Resources.StatusSelectCharacterDirectory;
                 return;
             }
 
             if (string.IsNullOrWhiteSpace(selectedItem.FullPath) || !_fileSystem.DirectoryExists(selectedItem.FullPath))
             {
-                SelectedConfigAnalysisStatus = "所选 MOD 目录不存在。";
+                SelectedConfigAnalysisStatus = Properties.Resources.StatusModDirectoryNotExists;
                 return;
             }
 
@@ -923,7 +967,7 @@ namespace WuwaModModifier.ViewModels
                 SetSelectedConfigCandidatePathInternal(null);
                 ClearAnalysisCollections();
                 ClearConfigEditingState();
-                SelectedConfigAnalysisStatus = "配置分析失败。";
+                SelectedConfigAnalysisStatus = Properties.Resources.StatusAnalysisFailed;
             }
         }
 
@@ -962,15 +1006,21 @@ namespace WuwaModModifier.ViewModels
             {
                 LogManager.Error("HandleSelectedConfigCandidateChanged: ", ex);
                 SetSelectedConfigCandidatePathInternal(SelectedConfigPath);
-                SelectedConfigAnalysisStatus = "切换候选配置失败。";
+                SelectedConfigAnalysisStatus = Properties.Resources.GenericCandidateSwitchFailed;
             }
         }
 
         private void SetSelectedConfigCandidatePathInternal(string? configPath)
         {
-            _isUpdatingSelectedConfigCandidate = true;
-            SelectedConfigCandidatePath = configPath;
-            _isUpdatingSelectedConfigCandidate = false;
+            _updatingSelectedConfigCandidateDepth++;
+            try
+            {
+                SelectedConfigCandidatePath = configPath;
+            }
+            finally
+            {
+                _updatingSelectedConfigCandidateDepth--;
+            }
         }
 
         private void ClearAnalysisCollections()
@@ -2310,24 +2360,52 @@ namespace WuwaModModifier.ViewModels
                 var newDir = Path.Combine(parentDir, $"{baseFolderName}_p{nextIndex}");
 
                 _fileSystem.CreateDirectory(newDir);
-                var configRelativePath = Path.GetRelativePath(baseDir, SelectedConfigPath);
-                var newConfigPath = Path.Combine(newDir, configRelativePath);
-                var newConfigDir = Path.GetDirectoryName(newConfigPath) ?? newDir;
-                if (!newConfigDir.Equals(newDir, StringComparison.OrdinalIgnoreCase))
+
+                var allConfigs = _configDiscoveryService.GetConfigCandidates(baseDir);
+                foreach (var configPath in allConfigs)
                 {
-                    _fileSystem.CreateDirectory(newConfigDir);
+                    var configRelativePath = Path.GetRelativePath(baseDir, configPath);
+                    var newConfigPath = Path.Combine(newDir, configRelativePath);
+                    var newConfigDir = Path.GetDirectoryName(newConfigPath) ?? newDir;
+                    if (!newConfigDir.Equals(newDir, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _fileSystem.CreateDirectory(newConfigDir);
+                    }
+
+                    var configBuffer = configPath.Equals(SelectedConfigPath, StringComparison.OrdinalIgnoreCase)
+                        ? workingBuffer
+                        : _configUpdateService.LoadBuffer(configPath);
+                    _configUpdateService.SaveBuffer(configBuffer, newConfigPath);
                 }
 
-                _configUpdateService.SaveBuffer(workingBuffer, newConfigPath);
+                var savedItem = SelectedDirectoryItem;
+                var savedConfigCandidatePath = SelectedConfigCandidatePath;
+                var checkedItems = DirectoryItems
+                    .SelectMany(c => c.Children)
+                    .Where(item => item.IsChecked)
+                    .Select(item => item.FullPath)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+                GetMod(out _, out _);
                 LoadDirectoryTree();
-                if (_directoryItems.Count > 0)
+
+                foreach (var item in DirectoryItems.SelectMany(c => c.Children))
                 {
-                    SelectedDirectoryItem = _directoryItems
-                        .SelectMany(c => c.Children)
-                        .FirstOrDefault(item => item.FullPath.Equals(newDir, StringComparison.OrdinalIgnoreCase));
+                    if (checkedItems.Contains(item.FullPath))
+                    {
+                        item.IsChecked = true;
+                    }
                 }
 
+                if (savedItem != null)
+                {
+                    SelectedDirectoryItem = DirectoryItems
+                        .SelectMany(c => c.Children)
+                        .FirstOrDefault(item =>
+                            item.FullPath.Equals(savedItem.FullPath, StringComparison.OrdinalIgnoreCase));
+                }
+
+                SetSelectedConfigCandidatePathInternal(savedConfigCandidatePath);
                 RefreshSelectedConfigAnalysis();
                 SelectedConfigEditStatus = $"已创建多配置：{baseFolderName}_p{nextIndex}";
             }
@@ -2614,7 +2692,7 @@ namespace WuwaModModifier.ViewModels
                 : path + Path.DirectorySeparatorChar;
         }
 
-        private static List<string> SplitEditorValues(string text)
+        internal static List<string> SplitEditorValues(string text)
         {
             return text
                 .Replace("\r\n", "\n", StringComparison.Ordinal)
@@ -2923,8 +3001,6 @@ namespace WuwaModModifier.ViewModels
                 : ModConfigSaveTarget.WwmiDirectory;
         }
 
-        public sealed record ConfigCandidateOption(string DisplayPath, string FullPath);
-
         private string GetSavePreviewPath(ModConfigSaveTarget saveTarget)
         {
             if (string.IsNullOrWhiteSpace(SelectedConfigPath))
@@ -2983,15 +3059,8 @@ namespace WuwaModModifier.ViewModels
 
         private static string NormalizeLineEndings(string? text, string lineEnding)
         {
-            var normalizedText = (text ?? string.Empty)
-                .Replace("\r\n", "\n", StringComparison.Ordinal)
-                .Replace("\r", "\n", StringComparison.Ordinal);
-
-            var targetLineEnding = string.IsNullOrEmpty(lineEnding)
-                ? Environment.NewLine
-                : lineEnding;
-
-            return normalizedText.Replace("\n", targetLineEnding, StringComparison.Ordinal);
+            var target = string.IsNullOrEmpty(lineEnding) ? Environment.NewLine : lineEnding;
+            return TextHelper.NormalizeLineEndings(text, target);
         }
 
         private string ResolveDefaultStandardToggleTemplatePath()
@@ -3391,11 +3460,11 @@ namespace WuwaModModifier.ViewModels
                 //更新已安装MOD
                 if (successCount > 0 && !GetWwmi(out _))
                 {
-                    _messages.ShowError("加载已安装MOD失败。");
+                    WwmiPathLoadStatusText = "加载已安装MOD失败。";
                     return;
                 }
 
-                _messages.ShowInfo($"成功加载 {successCount} 个MOD{(skipCount > 0 ? $"，跳过 {skipCount} 个" : "")}{(failCount > 0 ? $"，失败 {failCount} 个" : "")}。");
+                WwmiPathLoadStatusText = $"成功加载 {successCount} 个MOD{(skipCount > 0 ? $"，跳过 {skipCount} 个" : "")}{(failCount > 0 ? $"，失败 {failCount} 个" : "")}。";
             }
             catch (Exception ex)
             {

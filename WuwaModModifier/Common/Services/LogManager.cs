@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.Diagnostics;
+using System.IO;
 using System.Text;
 
 namespace WuwaModModifier.Common
@@ -8,10 +9,7 @@ namespace WuwaModModifier.Common
     /// </summary>
     public class LogManager
     {
-        private static object lock_info = new object();
-        private static object lock_log = new object();
-        private static object lock_error = new object();
-        private static object lock_logName = new object();
+        private static readonly object LockObj = new object();
 
         /// <summary>
         /// 写入日志(每天一个文件)
@@ -20,7 +18,7 @@ namespace WuwaModModifier.Common
         /// <param name="folder">日志文件所在文件件,默认“Log”</param>
         public static void Log(string content, string folder = "Log")
         {
-            lock (lock_log)
+            lock (LockObj)
             {
                 string fileDir = string.Format("{0}\\{1}", AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'), folder);
                 CreateFolder(fileDir);
@@ -34,7 +32,10 @@ namespace WuwaModModifier.Common
                         sw.Close();
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"LogManager.Log failed: {ex.Message}");
+                }
             }
         }
 
@@ -44,7 +45,7 @@ namespace WuwaModModifier.Common
         /// <param name="content">内容</param>
         public static void Info(string content)
         {
-            lock (lock_info)
+            lock (LockObj)
             {
                 string fileDir = string.Format("{0}\\MessageLog", AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'));
                 CreateFolder(fileDir);
@@ -58,7 +59,10 @@ namespace WuwaModModifier.Common
                         sw.Close();
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"LogManager.Info failed: {ex.Message}");
+                }
             }
         }
 
@@ -69,7 +73,7 @@ namespace WuwaModModifier.Common
         /// <param name="ex">异常信息</param>
         public static void Error(string content, Exception ex)
         {
-            lock (lock_error)
+            lock (LockObj)
             {
                 string fileDir = string.Format("{0}\\ErrorLog", AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'));
                 CreateFolder(fileDir);
@@ -83,7 +87,10 @@ namespace WuwaModModifier.Common
                         sw.Close();
                     }
                 }
-                catch { }
+                catch (Exception logEx)
+                {
+                    Debug.WriteLine($"LogManager.Error failed: {logEx.Message}");
+                }
             }
         }
 
@@ -96,10 +103,9 @@ namespace WuwaModModifier.Common
         /// <param name="folder">日志文件所在文件件,默认“Log”</param>
         public static void LogWithPostfix(string content, string postfix, string folder = "Log")
         {
-            lock (lock_logName)
+            lock (LockObj)
             {
                 string fileDir = string.Format("{0}\\{1}", AppDomain.CurrentDomain.BaseDirectory.TrimEnd('\\'), folder);
-                // 创建目录
                 CreateFolder(fileDir);
                 string filePath = string.Format("{0}\\{1:yyyy-MM-dd}_{2}.log", fileDir, DateTime.Now, postfix);
                 try
@@ -111,7 +117,10 @@ namespace WuwaModModifier.Common
                         sw.Close();
                     }
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"LogManager.LogWithPostfix failed: {ex.Message}");
+                }
             }
         }
 
@@ -119,7 +128,7 @@ namespace WuwaModModifier.Common
         /// 创建文件夹
         /// </summary>
         /// <param name="dirPath">文件夹路径</param>
-        public static void CreateFolder(string dirPath)
+        private static void CreateFolder(string dirPath)
         {
             if (!Directory.Exists(dirPath))
             {
@@ -127,16 +136,16 @@ namespace WuwaModModifier.Common
             }
         }
 
-        private static readonly object lock_file = new object();
         /// <summary>
-        /// 保存数据到文件
+        /// 保存数据到文件（已弃用，请使用 IFileSystemService）
         /// </summary>
         /// <param name="filePath">文件全路径</param>
         /// <param name="content">内容</param>
         /// <param name="encoding">编码方式,默认为utf-8</param>
+        [System.Obsolete("Use IFileSystemService instead.")]
         public static void SaveDataToFile(string filePath, string content, Encoding? encoding = null)
         {
-            lock (lock_file)
+            lock (LockObj)
             {
                 if (encoding == null)
                 {

@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.IO;
 using System.Reflection;
 using Xunit;
@@ -27,7 +27,11 @@ namespace UnitTests
 
         private static void InvokePrivateMethod(object obj, string methodName, params object?[]? parameters)
         {
-            var method = obj.GetType().GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Instance);
+            var paramTypes = parameters?.Select(p => p?.GetType() ?? typeof(object)).ToArray()
+                ?? Array.Empty<Type>();
+            var method = obj.GetType().GetMethod(methodName,
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                null, paramTypes, null);
             Assert.NotNull(method);
             method!.Invoke(obj, parameters);
         }
@@ -36,7 +40,7 @@ namespace UnitTests
         public void LoadDirectoryTree_ShouldCreateTreeFromAllMods()
         {
             // Arrange
-            var vm = new MainViewModel();
+            var vm = TestHelper.CreateMainViewModel();
 
             var allMods = new List<WuwaMods>
             {
@@ -83,10 +87,8 @@ namespace UnitTests
         public void LoadDirectoryTree_ShouldIgnoreWeaponWhenFlagIsTrue()
         {
             // Arrange
-            var vm = new MainViewModel
-            {
-                IgnoreWeapon = true
-            };
+            var vm = TestHelper.CreateMainViewModel();
+            vm.IgnoreWeapon = true;
 
             var allMods = new List<WuwaMods>
             {
@@ -124,7 +126,7 @@ namespace UnitTests
         public void SelectLoadedMods_ShouldSelectAndCheckMatchingItems()
         {
             // Arrange
-            var vm = new MainViewModel();
+            var vm = TestHelper.CreateMainViewModel();
 
             // 构造目录树
             vm.DirectoryItems = new ObservableCollection<DirectoryItemViewModel>
@@ -193,7 +195,7 @@ namespace UnitTests
         public void ClearSelection_ShouldClearAllIsSelectedFlags()
         {
             // Arrange
-            var vm = new MainViewModel();
+            var vm = TestHelper.CreateMainViewModel();
 
             var root = new DirectoryItemViewModel
             {
@@ -228,7 +230,7 @@ namespace UnitTests
         public void CollectSelectedItems_ShouldReturnAllCheckedLeafItems()
         {
             // Arrange
-            var vm = new MainViewModel();
+            var vm = TestHelper.CreateMainViewModel();
 
             var root = new DirectoryItemViewModel
             {
@@ -282,7 +284,7 @@ namespace UnitTests
                     "handling = skip\n" +
                     "drawindexed = 12, 0, 0\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService());
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -345,7 +347,7 @@ namespace UnitTests
                     "[Constants]\n" +
                     "global $form = 3\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService());
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -390,7 +392,7 @@ namespace UnitTests
                     "[Constants]\n" +
                     "global $form = 1\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService());
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
                     Name = "[202]CandidateSwitch",
@@ -442,7 +444,7 @@ namespace UnitTests
                     "    drawindexed = 12, 0, 0\n" +
                     "endif\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService());
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -489,7 +491,7 @@ namespace UnitTests
         [Fact]
         public void SelectedDirectoryItem_ShouldOnlyEnableVersionSyncForCharacterDirectory()
         {
-            var vm = new MainViewModel();
+            var vm = TestHelper.CreateMainViewModel();
             var characterDirectory = new DirectoryItemViewModel
             {
                 Name = "Encore",
@@ -539,7 +541,7 @@ namespace UnitTests
                     "handling = skip\n" +
                     "drawindexed = 12, 0, 0\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService());
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
                     Name = "[200]FancyDress",
@@ -605,11 +607,9 @@ namespace UnitTests
                     "endif\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -685,11 +685,9 @@ namespace UnitTests
                     "endif\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -747,11 +745,9 @@ namespace UnitTests
                     "endif\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -833,11 +829,9 @@ namespace UnitTests
                     "$curHat = 0,1\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -893,11 +887,9 @@ namespace UnitTests
                 File.WriteAllText(modConfigPath, "[Constants]\nglobal persist $value = 1\n");
                 File.WriteAllText(wwmiConfigPath, "[Constants]\nglobal persist $value = 9\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -955,11 +947,9 @@ namespace UnitTests
                 File.WriteAllText(wwmiMainConfigPath, "[Constants]\nglobal persist $value = 9\n");
                 File.WriteAllText(wwmiFormConfigPath, "[Constants]\nglobal persist $value = 8\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -1011,11 +1001,9 @@ namespace UnitTests
                 var modConfigPath = Path.Combine(modDirectory, "mod.ini");
                 File.WriteAllText(modConfigPath, "[Constants]\nglobal persist $value = 1\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -1056,11 +1044,9 @@ namespace UnitTests
                 File.WriteAllText(wwmiConfigPath, "[Constants]\nglobal persist $value = 9\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -1108,11 +1094,9 @@ namespace UnitTests
                 File.WriteAllText(wwmiConfigPath, "[Constants]\nglobal persist $value = 1\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -1172,11 +1156,9 @@ namespace UnitTests
                     "endif\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -1243,7 +1225,7 @@ namespace UnitTests
                     "; Draw Component 0.HAT\n" +
                     "drawindexed = 12, 0, 0\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService());
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
                     Name = "[200]FancyDress",
@@ -1321,10 +1303,8 @@ namespace UnitTests
                     "type = cycle\n" +
                     "$key_2 = 0,1\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
-                {
-                    StandardToggleTemplatePath = templatePath
-                };
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
+                vm.StandardToggleTemplatePath = templatePath;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -1373,7 +1353,7 @@ namespace UnitTests
                     "; Draw Component 0.HAT\n" +
                     "drawindexed = 12, 0, 0\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService());
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
                     Name = "[200]FancyDress",
@@ -1438,10 +1418,8 @@ namespace UnitTests
                     "type = cycle\n" +
                     "$key_2 = 0,1\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
-                {
-                    StandardToggleTemplatePath = templatePath
-                };
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
+                vm.StandardToggleTemplatePath = templatePath;
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
                     Name = "[200]FancyDress",
@@ -1528,10 +1506,8 @@ namespace UnitTests
                     "type = cycle\n" +
                     "$key_2 = 0,1\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
-                {
-                    StandardToggleTemplatePath = templatePath
-                };
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
+                vm.StandardToggleTemplatePath = templatePath;
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
                     Name = "[200]FancyDress",
@@ -1602,10 +1578,8 @@ namespace UnitTests
                     "type = cycle\n" +
                     "$key_1 = 0,1\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
-                {
-                    StandardToggleTemplatePath = templatePath
-                };
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
+                vm.StandardToggleTemplatePath = templatePath;
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
                     Name = "[200]FancyDress",
@@ -1668,10 +1642,8 @@ namespace UnitTests
                     "type = cycle\n" +
                     "$key_1 = 0,1\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService())
-                {
-                    StandardToggleTemplatePath = templatePath
-                };
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
+                vm.StandardToggleTemplatePath = templatePath;
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
                     Name = "[200]FancyDress",
@@ -1724,7 +1696,7 @@ namespace UnitTests
                     "; Draw Component 0.HAT\n" +
                     "drawindexed = 12, 0, 0\n");
 
-                var vm = new MainViewModel(new FileSystemService(), new TestMessageService());
+                var vm = TestHelper.CreateMainViewModel(new TestMessageService());
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
                     Name = "[200]FancyDress",
@@ -1785,11 +1757,9 @@ namespace UnitTests
                     "endif\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -1879,10 +1849,8 @@ namespace UnitTests
                     "drawindexed = 12, 0, 0\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -1937,10 +1905,8 @@ namespace UnitTests
                     "drawindexed = 12, 0, 0\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {
@@ -2018,12 +1984,10 @@ namespace UnitTests
                     "$key_2 = 0,1\n");
 
                 var messages = new TestMessageService();
-                var vm = new MainViewModel(new FileSystemService(), messages)
-                {
-                    ModFolderPath = modRoot,
-                    WwmiFolderPath = wwmiRoot,
-                    StandardToggleTemplatePath = templatePath
-                };
+                var vm = TestHelper.CreateMainViewModel(messages);
+                vm.ModFolderPath = modRoot;
+                vm.WwmiFolderPath = wwmiRoot;
+                vm.StandardToggleTemplatePath = templatePath;
 
                 vm.SelectedDirectoryItem = new DirectoryItemViewModel
                 {

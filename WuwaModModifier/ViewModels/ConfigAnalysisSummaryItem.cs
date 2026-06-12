@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using WuwaModModifier.Common.Helpers;
 using WuwaModModifier.Model;
 
 namespace WuwaModModifier.ViewModels
@@ -53,11 +54,11 @@ namespace WuwaModModifier.ViewModels
 
         private static string Join(IEnumerable<string> values)
         {
-            return string.Join(" | ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+            return StringFormattingHelper.JoinNonEmpty(values);
         }
     }
 
-    public class ConfigParameterSummaryItem
+    public class ConfigParameterSummaryItem : IVisibilityBindingTarget
     {
         public string Name { get; set; } = string.Empty;
         public string DefaultValue { get; set; } = string.Empty;
@@ -70,6 +71,8 @@ namespace WuwaModModifier.ViewModels
         public bool CanRename { get; set; }
         public bool CanBindVisibilitySafely { get; set; }
         public bool CanCreateToggleBinding { get; set; }
+        public string ParameterName => Name;
+        public string DisplayName => VisibilityBindingDisplayText;
         public string VisibilityBindingDisplayText =>
             string.IsNullOrWhiteSpace(KeyBindingsText)
                 ? Name
@@ -92,12 +95,12 @@ namespace WuwaModModifier.ViewModels
 
         private static string Join(IEnumerable<string> values)
         {
-            return string.Join(" | ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+            return StringFormattingHelper.JoinNonEmpty(values);
         }
 
         private static string JoinSemicolon(IEnumerable<string> values)
         {
-            return string.Join("; ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+            return StringFormattingHelper.JoinSemicolon(values);
         }
     }
 
@@ -143,12 +146,12 @@ namespace WuwaModModifier.ViewModels
 
         private static string Join(IEnumerable<string> values)
         {
-            return string.Join(" | ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+            return StringFormattingHelper.JoinNonEmpty(values);
         }
 
         private static string JoinSemicolon(IEnumerable<string> values)
         {
-            return string.Join("; ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+            return StringFormattingHelper.JoinSemicolon(values);
         }
 
         private static string FormatKeyParameterBinding(ModVisibilityKeyParameterBinding binding)
@@ -176,9 +179,9 @@ namespace WuwaModModifier.ViewModels
             {
                 StatusText = item.Status switch
                 {
-                    ModConfigStandardizationStatus.FullyStandardized => "完全标准化",
-                    ModConfigStandardizationStatus.PartiallyStandardized => "部分标准化",
-                    _ => "跳过"
+                    ModConfigStandardizationStatus.FullyStandardized => Properties.Resources.StandardizationFully,
+                    ModConfigStandardizationStatus.PartiallyStandardized => Properties.Resources.StandardizationPartially,
+                    _ => Properties.Resources.StandardizationSkipped
                 },
                 OriginalSectionName = item.OriginalSectionName,
                 FinalSectionName = item.FinalSectionName,
@@ -191,7 +194,7 @@ namespace WuwaModModifier.ViewModels
 
         private static string Join(IEnumerable<string> values)
         {
-            return string.Join(" | ", values.Where(value => !string.IsNullOrWhiteSpace(value)));
+            return StringFormattingHelper.JoinNonEmpty(values);
         }
     }
 
@@ -228,7 +231,7 @@ namespace WuwaModModifier.ViewModels
         AutoApplicableOnly
     }
 
-    public class ConfigVisibilityBindingRemovalCandidate
+    public class ConfigVisibilityBindingRemovalCandidate : IVisibilityBindingTarget
     {
         public string ParameterName { get; set; } = string.Empty;
         public string KeyBindingsText { get; set; } = string.Empty;
@@ -237,6 +240,8 @@ namespace WuwaModModifier.ViewModels
             string.IsNullOrWhiteSpace(KeyBindingsText)
                 ? $"{ParameterName} → {KeySectionName}"
                 : $"{ParameterName} → {KeyBindingsText} ({KeySectionName})";
+        public string DisplayName => DisplayText;
+
         public string VisibilityBindingDisplayText => DisplayText;
     }
 

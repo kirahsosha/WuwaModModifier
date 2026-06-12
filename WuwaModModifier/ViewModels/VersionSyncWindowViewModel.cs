@@ -42,39 +42,31 @@ namespace WuwaModModifier.ViewModels
         private readonly ObservableCollection<VersionSyncParameterDiffItem> _parameterDiffItems;
         private readonly ObservableCollection<VersionSyncVisibilityDiffItem> _visibilityDiffItems;
 
-        public VersionSyncWindowViewModel()
-            : this(null, null, null, null, null)
-        {
-        }
-
         public VersionSyncWindowViewModel(
-            string? initialImportedModRootPath,
-            IFileSystemService? fileSystem = null,
-            IMessageService? messageService = null,
-            IModConfigVersionSyncService? versionSyncService = null,
-            IModConfigUpdateService? configUpdateService = null,
-            IModConfigParser? configParser = null,
-            IModConfigAnalysisService? configAnalysisService = null)
+            IFileSystemService fileSystem,
+            IMessageService messageService,
+            IModConfigVersionSyncService versionSyncService,
+            IModConfigUpdateService configUpdateService,
+            IModConfigParser configParser,
+            IModConfigAnalysisService configAnalysisService)
         {
-            _fileSystem = fileSystem ?? new FileSystemService();
-            _messages = messageService ?? new MessageService();
-            _configParser = configParser ?? new ModConfigParser(_fileSystem);
-            _configAnalysisService = configAnalysisService ?? new ModConfigAnalysisService(_configParser);
-            _configUpdateService = configUpdateService ?? new ModConfigUpdateService(_fileSystem);
-            _versionSyncService = versionSyncService ?? new ModConfigVersionSyncService(_fileSystem);
+            _fileSystem = fileSystem;
+            _messages = messageService;
+            _configParser = configParser;
+            _configAnalysisService = configAnalysisService;
+            _configUpdateService = configUpdateService;
+            _versionSyncService = versionSyncService;
             _comparisonCache = new Dictionary<string, VersionSyncComparisonResult>(StringComparer.OrdinalIgnoreCase);
             _importedCandidates = new List<VersionSyncFolderCandidate>();
 
-            _oldModRootPath = string.IsNullOrWhiteSpace(initialImportedModRootPath) ? string.Empty : initialImportedModRootPath;
-            _newModRootPath = _oldModRootPath;
-            _statusText = string.IsNullOrWhiteSpace(_newModRootPath)
-                ? "未从主窗口导入角色目录，请返回主窗口选择角色目录后重新打开。"
-                : "已从主窗口导入角色目录，正在自动生成版本同步配对。";
+            _oldModRootPath = string.Empty;
+            _newModRootPath = string.Empty;
+            _statusText = Properties.Resources.VersionSyncNoImport;
             _oldConfigText = string.Empty;
             _newConfigText = string.Empty;
             _resultConfigText = string.Empty;
             _lastAppliedOutputPath = string.Empty;
-            _batchApplySummaryText = "尚未批量应用作业。";
+            _batchApplySummaryText = Properties.Resources.VersionSyncNoBatchYet;
             _batchApplyLogText = string.Empty;
             _selectedJobFilterMode = VersionSyncJobFilterMode.All;
             _selectedBatchApplyMode = VersionSyncBatchApplyMode.AllVisibleJobs;
@@ -95,6 +87,15 @@ namespace WuwaModModifier.ViewModels
             SyncToggleDiffItemCommand = new RelayCommand<VersionSyncToggleDiffItem>(ExecuteSyncToggleDiffItem, CanSyncToggleDiffItem);
             SyncParameterDiffItemCommand = new RelayCommand<VersionSyncParameterDiffItem>(ExecuteSyncParameterDiffItem, CanSyncParameterDiffItem);
             SyncVisibilityDiffItemCommand = new RelayCommand<VersionSyncVisibilityDiffItem>(ExecuteSyncVisibilityDiffItem, CanSyncVisibilityDiffItem);
+        }
+
+        public void SetImportedDirectory(string? path)
+        {
+            _oldModRootPath = string.IsNullOrWhiteSpace(path) ? string.Empty : path;
+            _newModRootPath = _oldModRootPath;
+            _statusText = string.IsNullOrWhiteSpace(_newModRootPath)
+                ? Properties.Resources.VersionSyncNoImport
+                : Properties.Resources.VersionSyncImporting;
 
             if (CanRefreshPairings())
             {
