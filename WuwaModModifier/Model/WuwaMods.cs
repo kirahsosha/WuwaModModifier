@@ -11,6 +11,7 @@ namespace WuwaModModifier.Model
         public string CharacterName { get; set; } = "";
         public string Folder { get; set; } = "";
         public List<WuwaMod> Mods { get; set; } = new List<WuwaMod>();
+        public int ArchiveCount { get; set; }
     }
 
     public class WuwaMod

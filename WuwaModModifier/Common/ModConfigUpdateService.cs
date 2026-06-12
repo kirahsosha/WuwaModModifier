@@ -136,16 +136,7 @@ namespace WuwaModModifier.Common
             {
                 var toggle = analysis.Toggles.FirstOrDefault(item =>
                     item.SectionName.Equals(section.Name, StringComparison.OrdinalIgnoreCase));
-                var currentVariableName = string.Empty;
-                var canRename = false;
-                var isStandardizationCandidate = toggle != null &&
-                    TryGetStandardizationTarget(toggle, analysis.Parameters, out currentVariableName, out canRename);
-
-                // For non-candidate sections, try to extract the primary variable name.
-                if (!isStandardizationCandidate)
-                {
-                    currentVariableName = toggle?.Targets.FirstOrDefault()?.VariableName ?? string.Empty;
-                }
+                var currentVariableName = toggle?.Targets.FirstOrDefault()?.VariableName ?? string.Empty;
 
                 // Resolve slot: stable match by variable name first, then sequential.
                 int slotIndex;
@@ -185,81 +176,20 @@ namespace WuwaModModifier.Common
                 var originalSectionName = section.Name;
                 ApplyKeyBindingsToSection(section, slot.KeyBindings);
 
-                // Re-analyze after modifying key bindings so downstream checks see current state.
+                // Always partially standardized: only key bindings are updated,
+                // section names and variable names/values are preserved.
                 analysis = _analysisService.Analyze(document);
-
-                if (!isStandardizationCandidate)
+                partialCount++;
+                items.Add(new ModConfigStandardizationItemResult
                 {
-                    // Force key binding update for non-standard sections without renaming.
-                    partialCount++;
-                    items.Add(new ModConfigStandardizationItemResult
-                    {
-                        OriginalSectionName = originalSectionName,
-                        FinalSectionName = section.Name,
-                        OriginalVariableName = currentVariableName,
-                        FinalVariableName = currentVariableName,
-                        TargetKeyBindings = slot.KeyBindings.ToList(),
-                        Status = ModConfigStandardizationStatus.PartiallyStandardized,
-                        Reason = "不属于可安全重命名的二值 cycle 槽位，快捷键已强制对齐模板。"
-                    });
-                    continue;
-                }
-
-                if (currentVariableName.Equals(slot.VariableName, StringComparison.OrdinalIgnoreCase))
-                {
-                    RenameSection(section, slot.SectionName);
-                    analysis = _analysisService.Analyze(document);
-                    fullCount++;
-                    items.Add(new ModConfigStandardizationItemResult
-                    {
-                        OriginalSectionName = originalSectionName,
-                        FinalSectionName = section.Name,
-                        OriginalVariableName = currentVariableName,
-                        FinalVariableName = slot.VariableName,
-                        TargetKeyBindings = slot.KeyBindings.ToList(),
-                        Status = ModConfigStandardizationStatus.FullyStandardized,
-                        Reason = "变量名已符合模板，仅对齐节名与快捷键。"
-                    });
-                    continue;
-                }
-
-                var targetVariableExists = analysis.Parameters.Any(parameter =>
-                    parameter.Name.Equals(slot.VariableName, StringComparison.OrdinalIgnoreCase) &&
-                    !parameter.Name.Equals(currentVariableName, StringComparison.OrdinalIgnoreCase));
-
-                if (canRename && !targetVariableExists)
-                {
-                    ReplaceVariableTokensInDocument(document, currentVariableName, slot.VariableName);
-                    RenameSection(section, slot.SectionName);
-                    analysis = _analysisService.Analyze(document);
-                    fullCount++;
-                    items.Add(new ModConfigStandardizationItemResult
-                    {
-                        OriginalSectionName = originalSectionName,
-                        FinalSectionName = section.Name,
-                        OriginalVariableName = currentVariableName,
-                        FinalVariableName = slot.VariableName,
-                        TargetKeyBindings = slot.KeyBindings.ToList(),
-                        Status = ModConfigStandardizationStatus.FullyStandardized,
-                        Reason = "变量名、节名和快捷键已全部对齐模板。"
-                    });
-                }
-                else
-                {
-                    partialCount++;
-                    items.Add(new ModConfigStandardizationItemResult
-                    {
-                        OriginalSectionName = originalSectionName,
-                        FinalSectionName = section.Name,
-                        OriginalVariableName = currentVariableName,
-                        FinalVariableName = currentVariableName,
-                        TargetKeyBindings = slot.KeyBindings.ToList(),
-                        Status = ModConfigStandardizationStatus.PartiallyStandardized,
-                        Reason = targetVariableExists
-                            ? "目标标准变量已存在，仅对齐快捷键。"
-                            : "变量重命名风险过高，仅对齐快捷键。"
-                    });
-                }
+                    OriginalSectionName = originalSectionName,
+                    FinalSectionName = section.Name,
+                    OriginalVariableName = currentVariableName,
+                    FinalVariableName = currentVariableName,
+                    TargetKeyBindings = slot.KeyBindings.ToList(),
+                    Status = ModConfigStandardizationStatus.PartiallyStandardized,
+                    Reason = "快捷键已强制对齐模板。"
+                });
             }
 
             return new ModConfigStandardizationResult

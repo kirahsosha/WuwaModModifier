@@ -189,6 +189,7 @@ namespace WuwaModModifier.ViewModels
             SaveConfigToWwmiCommand = new RelayCommand(ExecuteSaveConfigToWwmi, CanSaveConfigToWwmi);
             SyncModToWwmiCommand = new RelayCommand(ExecuteSyncModToWwmi, CanSyncModToWwmi);
             SyncWwmiToModCommand = new RelayCommand(ExecuteSyncWwmiToMod, CanSyncWwmiToMod);
+            AddMultiConfigCommand = new RelayCommand(ExecuteAddMultiConfig, CanAddMultiConfig);
         }
 
         public DirectoryItemViewModel? SelectedDirectoryItem
@@ -768,6 +769,8 @@ namespace WuwaModModifier.ViewModels
         public ICommand SaveConfigToWwmiCommand { get; }
         public ICommand SyncModToWwmiCommand { get; }
         public ICommand SyncWwmiToModCommand { get; }
+
+        public ICommand AddMultiConfigCommand { get; }
 
         /// <summary>
         /// BtnModPath Click Event
@@ -2280,6 +2283,223 @@ namespace WuwaModModifier.ViewModels
             return CanSyncConfig(ModConfigSyncDirection.WwmiToMod);
         }
 
+        private bool CanAddMultiConfig()
+        {
+            return SelectedDirectoryItem != null && !SelectedDirectoryItem.IsDirectory;
+        }
+
+        private void ExecuteAddMultiConfig()
+        {
+            if (SelectedDirectoryItem == null || SelectedDirectoryItem.IsDirectory)
+            {
+                return;
+            }
+
+            try
+            {
+                if (!TryBuildCurrentWorkingBuffer(out var workingBuffer, out _))
+                {
+                    workingBuffer = _configUpdateService.LoadBuffer(SelectedConfigPath);
+                }
+
+                var baseDir = SelectedDirectoryItem.FullPath;
+                var parentDir = Path.GetDirectoryName(baseDir) ?? string.Empty;
+                var folderName = Path.GetFileName(baseDir);
+                var baseFolderName = ModPathHelper.StripMultiConfigSuffix(folderName);
+                var nextIndex = GetNextMultiConfigIndex(parentDir, baseFolderName);
+                var newDir = Path.Combine(parentDir, $"{baseFolderName}_p{nextIndex}");
+
+                _fileSystem.CreateDirectory(newDir);
+                var configRelativePath = Path.GetRelativePath(baseDir, SelectedConfigPath);
+                var newConfigPath = Path.Combine(newDir, configRelativePath);
+                var newConfigDir = Path.GetDirectoryName(newConfigPath) ?? newDir;
+                if (!newConfigDir.Equals(newDir, StringComparison.OrdinalIgnoreCase))
+                {
+                    _fileSystem.CreateDirectory(newConfigDir);
+                }
+
+                _configUpdateService.SaveBuffer(workingBuffer, newConfigPath);
+
+                LoadDirectoryTree();
+                if (_directoryItems.Count > 0)
+                {
+                    SelectedDirectoryItem = _directoryItems
+                        .SelectMany(c => c.Children)
+                        .FirstOrDefault(item => item.FullPath.Equals(newDir, StringComparison.OrdinalIgnoreCase));
+                }
+
+                RefreshSelectedConfigAnalysis();
+                SelectedConfigEditStatus = $"已创建多配置：{baseFolderName}_p{nextIndex}";
+            }
+            catch (Exception ex)
+            {
+                LogManager.Error("AddMultiConfig: ", ex);
+                _messages.ShowError($"创建多配置失败：{ex.Message}");
+            }
+        }
+
+        private static int GetNextMultiConfigIndex(string parentDir, string baseFolderName)
+        {
+            var strippedBase = ModPathHelper.StripMultiConfigSuffix(baseFolderName);
+            var pattern = strippedBase + "_p";
+            var maxIndex = 0;
+            try
+            {
+                foreach (var dir in Directory.GetDirectories(parentDir, pattern + "*"))
+                {
+                    var dirName = Path.GetFileName(dir);
+                    var suffix = dirName.Substring(pattern.Length);
+                    if (int.TryParse(suffix, out var index) && index > maxIndex)
+                    {
+                        maxIndex = index;
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore directory enumeration errors.
+            }
+
+            return maxIndex + 1;
+        }
+
+        private void SyncMultiConfigFromMainMod(DirectoryItemViewModel selectedItem)
+        {
+            if (selectedItem == null || selectedItem.IsDirectory)
+            {
+                return;
+            }
+
+            var modName = selectedItem.Name;
+            if (!ModPathHelper.IsMultiConfigMod(modName))
+            {
+                return;
+            }
+
+            var modDir = selectedItem.FullPath;
+            var parentDir = Path.GetDirectoryName(modDir) ?? string.Empty;
+            var multiConfigDirName = Path.GetFileName(modDir);
+            var mainDirName = ModPathHelper.StripMultiConfigSuffix(multiConfigDirName);
+            if (string.IsNullOrWhiteSpace(mainDirName) || mainDirName.Equals(multiConfigDirName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var mainModDir = Path.Combine(parentDir, mainDirName);
+            if (!_fileSystem.DirectoryExists(mainModDir))
+            {
+                return;
+            }
+
+            try
+            {
+                // Only copy missing .ini config files from main MOD — never copy resource binaries.
+                CopyMissingConfigFiles(mainModDir, modDir);
+            }
+            catch (Exception ex)
+            {
+                LogManager.Error("SyncMultiConfigFromMainMod: ", ex);
+            }
+
+            // Also sync WWMI directory: copy all files from main MOD WWMI, then
+            // overwrite with multi-config MOD's config files.
+            try
+            {
+                var characterParentDir = Path.GetDirectoryName(parentDir);
+                if (!string.IsNullOrWhiteSpace(WwmiFolderPath) && !string.IsNullOrWhiteSpace(characterParentDir))
+                {
+                    var characterName = Path.GetFileName(characterParentDir);
+                    var mainWwmiDir = Path.Combine(WwmiFolderPath, $"[{characterName}]{mainDirName}");
+                    var multiWwmiDir = Path.Combine(WwmiFolderPath, $"[{characterName}]{multiConfigDirName}");
+
+                    if (_fileSystem.DirectoryExists(mainWwmiDir) && !_fileSystem.DirectoryExists(multiWwmiDir))
+                    {
+                        _fileSystem.CopyDirectory(mainWwmiDir, multiWwmiDir);
+                    }
+
+                    if (_fileSystem.DirectoryExists(multiWwmiDir))
+                    {
+                        // Overwrite WWMI config files with MOD multi-config versions.
+                        OverwriteWwmiConfigsFromModDir(modDir, multiWwmiDir);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LogManager.Error("SyncMultiConfigWwmi: ", ex);
+            }
+        }
+
+        private void CopyMissingConfigFiles(string sourceDir, string targetDir)
+        {
+            // Only copy .ini config files; skip resource binaries (Data/, Textures/, Meshes/ etc.).
+            foreach (var sourceFile in _fileSystem.GetFiles(sourceDir, "*.ini"))
+            {
+                var fileName = Path.GetFileName(sourceFile);
+                var targetFile = Path.Combine(targetDir, fileName);
+                if (!_fileSystem.FileExists(targetFile))
+                {
+                    var content = _fileSystem.ReadAllText(sourceFile);
+                    _fileSystem.WriteAllText(targetFile, content);
+                }
+            }
+
+            foreach (var sourceSubDir in _fileSystem.GetDirectories(sourceDir))
+            {
+                var dirName = Path.GetFileName(sourceSubDir) ?? string.Empty;
+                // Skip resource subdirectories that multi-config MODs should not duplicate.
+                if (IsResourceSubdirectory(dirName))
+                {
+                    continue;
+                }
+
+                var targetSubDir = Path.Combine(targetDir, dirName);
+                if (!_fileSystem.DirectoryExists(targetSubDir))
+                {
+                    _fileSystem.CreateDirectory(targetSubDir);
+                }
+
+                CopyMissingConfigFiles(sourceSubDir, targetSubDir);
+            }
+        }
+
+        private static bool IsResourceSubdirectory(string dirName)
+        {
+            return dirName.Equals("Data", StringComparison.OrdinalIgnoreCase) ||
+                   dirName.Equals("Textures", StringComparison.OrdinalIgnoreCase) ||
+                   dirName.Equals("Meshes", StringComparison.OrdinalIgnoreCase) ||
+                   dirName.Equals("Bin", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void OverwriteWwmiConfigsFromModDir(string modDir, string wwmiDir)
+        {
+            foreach (var modFile in _fileSystem.GetFiles(modDir, "*.ini"))
+            {
+                var fileName = Path.GetFileName(modFile);
+                var wwmiFile = Path.Combine(wwmiDir, fileName);
+                if (_fileSystem.FileExists(wwmiFile))
+                {
+                    var content = _fileSystem.ReadAllText(modFile);
+                    _fileSystem.WriteAllText(wwmiFile, content);
+                }
+            }
+
+            foreach (var modSubDir in _fileSystem.GetDirectories(modDir))
+            {
+                var dirName = Path.GetFileName(modSubDir) ?? string.Empty;
+                if (IsResourceSubdirectory(dirName))
+                {
+                    continue;
+                }
+
+                var wwmiSubDir = Path.Combine(wwmiDir, dirName);
+                if (_fileSystem.DirectoryExists(wwmiSubDir))
+                {
+                    OverwriteWwmiConfigsFromModDir(modSubDir, wwmiSubDir);
+                }
+            }
+        }
+
         private bool CanSyncConfig(ModConfigSyncDirection direction)
         {
             if (!CanSyncConfigBase())
@@ -2845,7 +3065,8 @@ namespace WuwaModModifier.ViewModels
                         {
                             CharacterName = characterName,
                             Folder = folder,
-                            Mods = new List<WuwaMod>()
+                            Mods = new List<WuwaMod>(),
+                            ArchiveCount = CountArchiveFiles(folder)
                         };
 
                         var modFolders = _fileSystem.GetDirectories(folder);
@@ -2886,6 +3107,25 @@ namespace WuwaModModifier.ViewModels
             else
             {
                 return false;
+            }
+        }
+
+        private int CountArchiveFiles(string folderPath)
+        {
+            if (string.IsNullOrWhiteSpace(folderPath) || !_fileSystem.DirectoryExists(folderPath))
+            {
+                return 0;
+            }
+
+            try
+            {
+                return _fileSystem.GetFiles(folderPath, "*.zip").Length
+                     + _fileSystem.GetFiles(folderPath, "*.7z").Length
+                     + _fileSystem.GetFiles(folderPath, "*.rar").Length;
+            }
+            catch
+            {
+                return 0;
             }
         }
 
@@ -2986,7 +3226,14 @@ namespace WuwaModModifier.ViewModels
                     if (count == 0) continue;
                     var index = ran.Next(count);
                     var mod = mods.Mods[index];
-                    _fileSystem.CopyDirectory(mod.FullPath, $"{_wwmiFolderPath}\\[{mod.CharacterName}][{mod.Id}]{mod.ModName}");
+                    var destPath = $"{_wwmiFolderPath}\\[{mod.CharacterName}][{mod.Id}]{mod.ModName}";
+
+                    if (ModPathHelper.IsMultiConfigMod(mod.ModName))
+                    {
+                        SeedMultiConfigWwmiFromMain(mod.CharacterName, mod.Id, mod.ModName, destPath);
+                    }
+
+                    _fileSystem.CopyDirectory(mod.FullPath, destPath);
                     loadedMods.Add(mod);
                     modCount++;
                 }
@@ -2996,6 +3243,24 @@ namespace WuwaModModifier.ViewModels
             {
                 LogManager.Error("RandomLoadMods: ", ex);
                 return false;
+            }
+        }
+
+        private void SeedMultiConfigWwmiFromMain(string characterName, string id, string modName, string destinationPath)
+        {
+            var multiWwmiDirName = $"[{characterName}][{id}]{modName}";
+            var mainWwmiDirName = $"[{id}]{modName}";
+            var mainDirName = ModPathHelper.StripMultiConfigSuffix(mainWwmiDirName);
+            if (string.IsNullOrWhiteSpace(mainDirName) ||
+                mainDirName.Equals(multiWwmiDirName, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var mainWwmiDir = Path.Combine(_modFolderPath, characterName, mainDirName);
+            if (_fileSystem.DirectoryExists(mainWwmiDir))
+            {
+                _fileSystem.CopyDirectory(mainWwmiDir, destinationPath);
             }
         }
 
@@ -3013,7 +3278,9 @@ namespace WuwaModModifier.ViewModels
                 var characterItem = new DirectoryItemViewModel
                 {
                     Name = mods.CharacterName,
-                    DisplayName = mods.CharacterName,
+                    DisplayName = mods.ArchiveCount > 0
+                        ? $"{mods.CharacterName} [MOD: {mods.Mods.Count}; Archive: {mods.ArchiveCount}]"
+                        : $"{mods.CharacterName} [MOD: {mods.Mods.Count}]",
                     FullPath = mods.Folder,
                     IsDirectory = true,
                     IsChecked = false
@@ -3094,27 +3361,23 @@ namespace WuwaModModifier.ViewModels
                             }
 
                             var destinationPath = $"{_wwmiFolderPath}\\[{characterName}][{id}]{modName}";
-                            var exist = _wwmiMods.Where(s => s.CharacterName == characterName).FirstOrDefault();
-                            // 如果目标目录不存在，复制
-                            if (exist == null)
+
+                            var exist = _wwmiMods.FirstOrDefault(s => s.CharacterName == characterName);
+                            // 存在相同characterName的其他MOD，删除
+                            if (exist != null && _fileSystem.DirectoryExists(exist.FullPath))
                             {
-                                _fileSystem.CopyDirectory(item.FullPath, destinationPath);
+                                _fileSystem.DeleteDirectory(exist.FullPath, true);
                             }
-                            // 如果目标目录已存在，跳过
-                            else if (exist.Id == id)
+
+                            // 检查MultiConfigMod
+                            if (ModPathHelper.IsMultiConfigMod(modName))
                             {
-                                skipCount++;
-                                continue;
+                                SeedMultiConfigWwmiFromMain(characterName, id, modName, destinationPath);
                             }
-                            // 存在相同characterName的其他MOD，先删除再复制
-                            else
-                            {
-                                if (_fileSystem.DirectoryExists(exist.FullPath))
-                                {
-                                    _fileSystem.DeleteDirectory(exist.FullPath, true);
-                                }
-                                _fileSystem.CopyDirectory(item.FullPath, destinationPath);
-                            }
+
+                            // 复制
+                            _fileSystem.CopyDirectory(item.FullPath, destinationPath);
+
                             successCount++;
                         }
                         catch (Exception ex)

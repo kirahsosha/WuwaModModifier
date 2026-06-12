@@ -43,6 +43,9 @@ namespace WuwaModModifier.Common
         private static readonly Regex TrailingHashSuffixRegex =
             new Regex(@"(?:_[0-9a-f]{5,})+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        private static readonly Regex MultiConfigSuffixRegex =
+            new Regex(@"_p\d+$", RegexOptions.Compiled);
+
         /// <summary>
         /// 从角色目录路径中获取角色名
         /// </summary>
@@ -129,6 +132,7 @@ namespace WuwaModModifier.Common
             {
                 var updated = TrailingVersionSuffixRegex.Replace(normalized, string.Empty);
                 updated = TrailingVerSuffixRegex.Replace(updated, string.Empty);
+                updated = MultiConfigSuffixRegex.Replace(updated, string.Empty);
                 updated = TrailingHashSuffixRegex.Replace(updated, string.Empty);
                 updated = updated.Trim('_');
 
@@ -141,6 +145,31 @@ namespace WuwaModModifier.Common
             }
 
             return normalized;
+        }
+
+        public static bool IsMultiConfigMod(string modName)
+        {
+            return !string.IsNullOrWhiteSpace(modName) && MultiConfigSuffixRegex.IsMatch(modName);
+        }
+
+        public static string GetBaseModName(string modName)
+        {
+            if (string.IsNullOrWhiteSpace(modName))
+            {
+                return string.Empty;
+            }
+
+            return MultiConfigSuffixRegex.Replace(modName, "");
+        }
+
+        public static string StripMultiConfigSuffix(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return string.Empty;
+            }
+
+            return MultiConfigSuffixRegex.Replace(name, "");
         }
 
         /// <summary>

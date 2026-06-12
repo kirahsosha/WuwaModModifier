@@ -28,6 +28,8 @@ namespace WuwaModModifier.Model
         public string ConfigPath { get; set; } = string.Empty;
         public string ConfigRelativePath { get; set; } = string.Empty;
         public string NormalizedNameKey { get; set; } = string.Empty;
+
+        public string DisplayText => $"{FolderName}\\{ConfigRelativePath}";
     }
 
     public class VersionSyncPairingJob

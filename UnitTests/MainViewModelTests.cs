@@ -2038,25 +2038,30 @@ namespace UnitTests
                 vm.ApplyStandardizationCommand.Execute(null);
 
                 Assert.True(vm.HasPendingConfigChanges);
-                Assert.Contains(vm.SelectedToggleItems, item => item.SectionName == "Key key_1");
-                Assert.Contains(vm.SelectedToggleItems, item => item.SectionName == "Key key_2");
-                Assert.Contains(vm.SelectedParameterItems, item => item.Name == "$key_1");
-                Assert.Contains(vm.SelectedParameterItems, item => item.Name == "$key_2");
-                Assert.Contains("完全 2", vm.SelectedConfigEditStatus);
+                Assert.Contains(vm.SelectedToggleItems, item => item.SectionName == "Key Hat");
+                Assert.Contains(vm.SelectedToggleItems, item => item.SectionName == "Key Bra");
+                Assert.Contains(vm.SelectedParameterItems, item => item.Name == "$hat");
+                Assert.Contains(vm.SelectedParameterItems, item => item.Name == "$bra");
+                Assert.Contains("部分 2", vm.SelectedConfigEditStatus);
                 Assert.Equal(2, vm.LatestStandardizationItems.Count);
-                Assert.Contains(vm.LatestStandardizationItems, item => item.StatusText == "完全标准化");
+                Assert.Contains(vm.LatestStandardizationItems, item => item.StatusText == "部分标准化");
                 var standardizationHistory = Assert.Single(vm.ModificationHistoryItems);
                 Assert.Equal("批量标准化", standardizationHistory.OperationTypeText);
                 Assert.Equal("toggle.ini", standardizationHistory.TargetText);
-                Assert.Contains("完全 2", standardizationHistory.SummaryText);
+                Assert.Contains("部分 2", standardizationHistory.SummaryText);
                 Assert.Contains(configPath, vm.SaveToModPreviewPath);
                 Assert.Contains("将覆盖已有文件", vm.SaveToModPreviewPath);
 
                 vm.SaveConfigToModCommand.Execute(null);
 
                 Assert.False(vm.HasPendingConfigChanges);
-                Assert.Contains("[Key key_1]", File.ReadAllText(configPath));
-                Assert.Contains("global persist $key_1 = 1", File.ReadAllText(configPath));
+                var savedContent = File.ReadAllText(configPath);
+                Assert.Contains("[Key Hat]", savedContent);
+                Assert.Contains("[Key Bra]", savedContent);
+                Assert.Contains("$hat = 0,1", savedContent);
+                Assert.Contains("$bra = 0,1", savedContent);
+                Assert.Contains("key = NO_CTRL NO_ALT NO_SHIFT NUMPAD1", savedContent);
+                Assert.Contains("key = NO_CTRL NO_ALT NO_SHIFT NUMPAD2", savedContent);
                 Assert.Contains("已保存到", messages.LastInfoMessage ?? string.Empty);
                 Assert.Contains(configPath, messages.LastConfirmationMessage ?? string.Empty);
                 Assert.Contains("将覆盖已有文件", messages.LastConfirmationMessage ?? string.Empty);

@@ -456,17 +456,18 @@ namespace UnitTests
             {
                 var result = service.StandardizeToggleSlots(service.LoadBuffer(filePath), templatePath);
 
-                Assert.Equal(2, result.FullyStandardizedCount);
-                Assert.Equal(0, result.PartiallyStandardizedCount);
+                Assert.Equal(0, result.FullyStandardizedCount);
+                Assert.Equal(2, result.PartiallyStandardizedCount);
                 Assert.Equal(1, result.SkippedCount);
-                Assert.Contains("[Key key_1]", result.Buffer.Content);
-                Assert.Contains("[Key key_2]", result.Buffer.Content);
-                Assert.Contains("global persist $key_1 = 1", result.Buffer.Content);
-                Assert.Contains("global persist $key_2 = 1", result.Buffer.Content);
+                Assert.Contains("[Key Hat]", result.Buffer.Content);
+                Assert.Contains("[Key Bra]", result.Buffer.Content);
+                Assert.Contains("[Key Extra]", result.Buffer.Content);
+                Assert.Contains("global persist $hat = 1", result.Buffer.Content);
+                Assert.Contains("global persist $bra = 1", result.Buffer.Content);
                 Assert.Contains("key = NO_CTRL NO_ALT NO_SHIFT NUMPAD1", result.Buffer.Content);
                 Assert.Contains("key = NO_CTRL NO_ALT NO_SHIFT NUMPAD2", result.Buffer.Content);
-                Assert.Contains("if $key_1 == 1", result.Buffer.Content);
-                Assert.Contains("[Key Extra]", result.Buffer.Content);
+                Assert.DoesNotContain("[Key key_1]", result.Buffer.Content);
+                Assert.DoesNotContain("global persist $key_1 = 1", result.Buffer.Content);
             }
             finally
             {

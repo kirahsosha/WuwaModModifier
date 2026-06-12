@@ -42,6 +42,7 @@ namespace WuwaModModifier.Common
                 .SelectMany(CreateCandidates)
                 .Where(candidate => candidate != null)
                 .Cast<VersionSyncFolderCandidate>()
+                .DistinctBy(candidate => candidate.DisplayText, StringComparer.OrdinalIgnoreCase)
                 .OrderBy(candidate => candidate.CharacterName, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(candidate => candidate.Id, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(candidate => candidate.FolderName, StringComparer.OrdinalIgnoreCase)
@@ -874,7 +875,7 @@ namespace WuwaModModifier.Common
                 }
 
                 var groupedCandidates = exactGroup.ToList();
-                if (IsSameModMultiVariant(groupedCandidates))
+                if (IsSameModMultiVariant(groupedCandidates) || IsSameDirectoryMultiConfig(groupedCandidates))
                 {
                     continue;
                 }
@@ -1031,14 +1032,35 @@ namespace WuwaModModifier.Common
                 return jobs;
             }
 
-            var pairCount = Math.Min(oldCandidates.Count, newCandidates.Count);
-            for (var index = 0; index < pairCount; index++)
+            var directPairCount = Math.Min(oldCandidates.Count, newCandidates.Count);
+            var sortedOld = oldCandidates
+                .OrderBy(c => c.ConfigRelativePath, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var sortedNew = newCandidates
+                .OrderBy(c => c.ConfigRelativePath, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            for (var index = 0; index < directPairCount; index++)
             {
                 jobs.Add(CreateJob(
-                    oldCandidates[index],
-                    newCandidates[index],
+                    sortedOld[index],
+                    sortedNew[index],
                     VersionSyncJobKind.DirectUpdate,
-                    newCandidates[index].FullPath,
+                    sortedNew[index].FullPath,
+                    sequence));
+                sequence++;
+            }
+
+            // Remaining old candidates (many-to-one): clone from the first new candidate.
+            for (var index = directPairCount; index < sortedOld.Count; index++)
+            {
+                var templateCandidate = sortedNew[0];
+                var outputDirectoryPath = BuildCloneOutputDirectoryPath(templateCandidate, sequence);
+                jobs.Add(CreateJob(
+                    sortedOld[index],
+                    templateCandidate,
+                    VersionSyncJobKind.CloneFromTemplate,
+                    outputDirectoryPath,
                     sequence));
                 sequence++;
             }
@@ -1160,6 +1182,18 @@ namespace WuwaModModifier.Common
 
         private static readonly Regex TrailingVerSuffixRegex =
             new Regex(@"(?:_ver\d+)+$", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+        private static bool IsSameDirectoryMultiConfig(IReadOnlyList<VersionSyncFolderCandidate> candidates)
+        {
+            if (candidates.Count < 2)
+            {
+                return false;
+            }
+
+            var firstPath = candidates[0].FullPath;
+            return candidates.All(c =>
+                c.FullPath.Equals(firstPath, StringComparison.OrdinalIgnoreCase));
+        }
 
         private static int CalculatePairingScore(
             VersionSyncFolderCandidate oldCandidate,
