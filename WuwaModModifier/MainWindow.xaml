@@ -597,10 +597,24 @@
                                                     Content="新增参数"
                                                     Command="{Binding CreateParameterCommand}"
                                                     Style="{StaticResource SecondaryButtonStyle}"/>
-                                            <CheckBox Grid.Column="2"
-                                                      VerticalAlignment="Center"
-                                                      Content="不显示系统参数"
-                                                      IsChecked="{Binding HideInternalSystemParameters}"/>
+                                            <StackPanel Grid.Column="2"
+                                                        Orientation="Horizontal">
+                                                <CheckBox Content="Toggle"
+                                                          Margin="0,8,8,0"
+                                                          IsChecked="{Binding ShowToggleParameters}"/>
+                                                <CheckBox Content="Texture"
+                                                          Margin="0,8,8,0"
+                                                          IsChecked="{Binding ShowTextureParameters}"/>
+                                                <CheckBox Content="Link"
+                                                          Margin="0,8,8,0"
+                                                          IsChecked="{Binding ShowLinkParameters}"/>
+                                                <CheckBox Content="System"
+                                                          Margin="0,8,8,0"
+                                                          IsChecked="{Binding ShowSystemParameters}"/>
+                                                <CheckBox Content="Unknown"
+                                                          Margin="0,8,8,0"
+                                                          IsChecked="{Binding ShowUnknownParameters}"/>
+                                            </StackPanel>
                                         </Grid>
                                     </Grid>
                                 </Border>

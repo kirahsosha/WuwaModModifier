@@ -24,7 +24,11 @@ namespace WuwaModModifier.ViewModels
         private ConfigParameterSummaryItem? _selectedParameterItem;
         private string _parameterRenameText;
         private string _parameterCreationName;
-        private bool _hideInternalSystemParameters;
+        private bool _showUnknownParameters = true;
+        private bool _showSystemParameters = true;
+        private bool _showToggleParameters = true;
+        private bool _showTextureParameters = true;
+        private bool _showLinkParameters = true;
 
         public ParameterManagerViewModel(
             IMainViewModelSession session,
@@ -40,7 +44,6 @@ namespace WuwaModModifier.ViewModels
             _selectedParameterItemsView.Filter = FilterSelectedParameterItem;
             _parameterRenameText = string.Empty;
             _parameterCreationName = string.Empty;
-            _hideInternalSystemParameters = true;
 
             RenameParameterCommand = new RelayCommand(ExecuteRenameParameter, CanRenameParameter);
             CreateParameterCommand = new RelayCommand(ExecuteCreateParameter, CanCreateParameter);
@@ -103,12 +106,60 @@ namespace WuwaModModifier.ViewModels
 
         // ── Filter ──
 
-        public bool HideInternalSystemParameters
+        public bool ShowUnknownParameters
         {
-            get => _hideInternalSystemParameters;
+            get => _showUnknownParameters;
             set
             {
-                if (SetProperty(ref _hideInternalSystemParameters, value))
+                if (SetProperty(ref _showUnknownParameters, value))
+                {
+                    RefreshSelectedParameterItemsView();
+                }
+            }
+        }
+
+        public bool ShowSystemParameters
+        {
+            get => _showSystemParameters;
+            set
+            {
+                if (SetProperty(ref _showSystemParameters, value))
+                {
+                    RefreshSelectedParameterItemsView();
+                }
+            }
+        }
+
+        public bool ShowToggleParameters
+        {
+            get => _showToggleParameters;
+            set
+            {
+                if (SetProperty(ref _showToggleParameters, value))
+                {
+                    RefreshSelectedParameterItemsView();
+                }
+            }
+        }
+
+        public bool ShowTextureParameters
+        {
+            get => _showTextureParameters;
+            set
+            {
+                if (SetProperty(ref _showTextureParameters, value))
+                {
+                    RefreshSelectedParameterItemsView();
+                }
+            }
+        }
+
+        public bool ShowLinkParameters
+        {
+            get => _showLinkParameters;
+            set
+            {
+                if (SetProperty(ref _showLinkParameters, value))
                 {
                     RefreshSelectedParameterItemsView();
                 }
@@ -145,8 +196,7 @@ namespace WuwaModModifier.ViewModels
             _selectedParameterItemsView.Refresh();
 
             if (SelectedParameterItem != null &&
-                HideInternalSystemParameters &&
-                IsInternalSystemParameter(SelectedParameterItem))
+                !FilterSelectedParameterItem(SelectedParameterItem))
             {
                 SelectedParameterItem = null;
             }
@@ -238,9 +288,20 @@ namespace WuwaModModifier.ViewModels
 
         private bool FilterSelectedParameterItem(object item)
         {
-            return item is not ConfigParameterSummaryItem parameterItem ||
-                !HideInternalSystemParameters ||
-                !IsInternalSystemParameter(parameterItem);
+            if (item is not ConfigParameterSummaryItem parameterItem)
+            {
+                return true;
+            }
+
+            return parameterItem.KindText switch
+            {
+                nameof(ModConfigParameterKind.Unknown) => ShowUnknownParameters,
+                nameof(ModConfigParameterKind.System) => ShowSystemParameters,
+                nameof(ModConfigParameterKind.Toggle) => ShowToggleParameters,
+                nameof(ModConfigParameterKind.Texture) => ShowTextureParameters,
+                nameof(ModConfigParameterKind.Link) => ShowLinkParameters,
+                _ => true
+            };
         }
 
         private void RefreshSelectedParameterItemsView()
@@ -248,16 +309,10 @@ namespace WuwaModModifier.ViewModels
             _selectedParameterItemsView.Refresh();
 
             if (SelectedParameterItem != null &&
-                HideInternalSystemParameters &&
-                IsInternalSystemParameter(SelectedParameterItem))
+                !FilterSelectedParameterItem(SelectedParameterItem))
             {
                 SelectedParameterItem = null;
             }
-        }
-
-        private static bool IsInternalSystemParameter(ConfigParameterSummaryItem item)
-        {
-            return item.KindText.Equals(nameof(ModConfigParameterKind.InternalSystem), StringComparison.OrdinalIgnoreCase);
         }
 
         internal static string NormalizeVariableName(string name)

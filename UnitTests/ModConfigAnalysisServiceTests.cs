@@ -97,8 +97,8 @@ namespace UnitTests
                 "type = cycle\n" +
                 "$Bra = 0,1,2\n"));
 
-            Assert.Equal(ModConfigParameterKind.InternalSystem, result.Parameters.Single(p => p.Name == "$object_detected").Kind);
-            Assert.Equal(ModConfigParameterKind.InternalSystem, result.Parameters.Single(p => p.Name == "$required_wwmi_version").Kind);
+            Assert.Equal(ModConfigParameterKind.System, result.Parameters.Single(p => p.Name == "$object_detected").Kind);
+            Assert.Equal(ModConfigParameterKind.System, result.Parameters.Single(p => p.Name == "$required_wwmi_version").Kind);
             Assert.Equal(ModConfigParameterKind.Toggle, result.Parameters.Single(p => p.Name == "$Bra").Kind);
         }
 
@@ -121,8 +121,8 @@ namespace UnitTests
                 "$\\WWMIv1\\object_guid = $object_guid\n" +
                 "Resource\\WWMIv1\\ModName = ref ResourceModName\n"));
 
-            Assert.Equal(ModConfigParameterKind.InternalSystem, result.Parameters.Single(p => p.Name == "$\\WWMIv1\\required_wwmi_version").Kind);
-            Assert.Equal(ModConfigParameterKind.InternalSystem, result.Parameters.Single(p => p.Name == "$\\WWMIv1\\object_guid").Kind);
+            Assert.Equal(ModConfigParameterKind.System, result.Parameters.Single(p => p.Name == "$\\WWMIv1\\required_wwmi_version").Kind);
+            Assert.Equal(ModConfigParameterKind.System, result.Parameters.Single(p => p.Name == "$\\WWMIv1\\object_guid").Kind);
             Assert.Equal(ModConfigParameterKind.Toggle, result.Parameters.Single(p => p.Name == "$Bra").Kind);
         }
 

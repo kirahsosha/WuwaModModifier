@@ -83,7 +83,11 @@ namespace WuwaModModifier.ViewModels
         private int _rawConfigNavigateLine;
         private int _rawConfigNavigateRequestVersion;
         private bool _isRawConfigDirty;
-        private bool _hideInternalSystemParameters;
+        private bool _showUnknownParameters = true;
+        private bool _showSystemParameters = true;
+        private bool _showToggleParameters = true;
+        private bool _showTextureParameters = true;
+        private bool _showLinkParameters = true;
         private bool _visibilityTargetIsVisible;
         private ModConfigSaveTarget _selectedConfigSource;
         private ToggleCreationMode _selectedToggleCreationMode;
@@ -157,7 +161,6 @@ namespace WuwaModModifier.ViewModels
             _rawConfigEditorText = string.Empty;
             _rawConfigLineEnding = Environment.NewLine;
             _isRawConfigDirty = false;
-            _hideInternalSystemParameters = true;
             _visibilityTargetIsVisible = true;
             _selectedConfigSource = ModConfigSaveTarget.ModDirectory;
             _selectedToggleCreationMode = ToggleCreationMode.ExistingParameter;
@@ -449,14 +452,66 @@ namespace WuwaModModifier.ViewModels
 
         public ObservableCollection<ConfigTextHighlightItem> RawConfigHighlights => _rawConfigHighlights;
 
-        public bool HideInternalSystemParameters
+        public bool ShowUnknownParameters
         {
-            get => _hideInternalSystemParameters;
+            get => _showUnknownParameters;
             set
             {
-                if (SetProperty(ref _hideInternalSystemParameters, value))
+                if (SetProperty(ref _showUnknownParameters, value))
                 {
-                    ParameterManager.HideInternalSystemParameters = value;
+                    ParameterManager.ShowUnknownParameters = value;
+                    RefreshSelectedParameterItemsView();
+                }
+            }
+        }
+
+        public bool ShowSystemParameters
+        {
+            get => _showSystemParameters;
+            set
+            {
+                if (SetProperty(ref _showSystemParameters, value))
+                {
+                    ParameterManager.ShowSystemParameters = value;
+                    RefreshSelectedParameterItemsView();
+                }
+            }
+        }
+
+        public bool ShowToggleParameters
+        {
+            get => _showToggleParameters;
+            set
+            {
+                if (SetProperty(ref _showToggleParameters, value))
+                {
+                    ParameterManager.ShowToggleParameters = value;
+                    RefreshSelectedParameterItemsView();
+                }
+            }
+        }
+
+        public bool ShowTextureParameters
+        {
+            get => _showTextureParameters;
+            set
+            {
+                if (SetProperty(ref _showTextureParameters, value))
+                {
+                    ParameterManager.ShowTextureParameters = value;
+                    RefreshSelectedParameterItemsView();
+                }
+            }
+        }
+
+        public bool ShowLinkParameters
+        {
+            get => _showLinkParameters;
+            set
+            {
+                if (SetProperty(ref _showLinkParameters, value))
+                {
+                    ParameterManager.ShowLinkParameters = value;
                     RefreshSelectedParameterItemsView();
                 }
             }
@@ -809,9 +864,9 @@ namespace WuwaModModifier.ViewModels
         {
             if (GetMod(out var characterCount, out var modCount))
             {
-                // 加载目录树
                 LoadDirectoryTree();
                 ModPathLoadStatusText = $"共找到 {characterCount} 名角色共 {modCount} 个 MOD。";
+                _appConfig.SaveModPath(ModFolderPath);
             }
             else
             {
@@ -831,6 +886,7 @@ namespace WuwaModModifier.ViewModels
             {
                 SelectLoadedMods();
                 WwmiPathLoadStatusText = $"共找到 {modCount} 个 MOD。";
+                _appConfig.SaveWwmiPath(WwmiFolderPath);
             }
             else
             {
@@ -1188,9 +1244,20 @@ namespace WuwaModModifier.ViewModels
 
         private bool FilterSelectedParameterItem(object item)
         {
-            return item is not ConfigParameterSummaryItem parameterItem ||
-                !HideInternalSystemParameters ||
-                !IsInternalSystemParameter(parameterItem);
+            if (item is not ConfigParameterSummaryItem parameterItem)
+            {
+                return true;
+            }
+
+            return parameterItem.KindText switch
+            {
+                nameof(ModConfigParameterKind.Unknown) => ShowUnknownParameters,
+                nameof(ModConfigParameterKind.System) => ShowSystemParameters,
+                nameof(ModConfigParameterKind.Toggle) => ShowToggleParameters,
+                nameof(ModConfigParameterKind.Texture) => ShowTextureParameters,
+                nameof(ModConfigParameterKind.Link) => ShowLinkParameters,
+                _ => true
+            };
         }
 
         private void RefreshSelectedParameterItemsView()
@@ -1198,16 +1265,10 @@ namespace WuwaModModifier.ViewModels
             _selectedParameterItemsView.Refresh();
 
             if (SelectedParameterItem != null &&
-                HideInternalSystemParameters &&
-                IsInternalSystemParameter(SelectedParameterItem))
+                !FilterSelectedParameterItem(SelectedParameterItem))
             {
                 SelectedParameterItem = null;
             }
-        }
-
-        private static bool IsInternalSystemParameter(ConfigParameterSummaryItem item)
-        {
-            return item.KindText.Equals(nameof(ModConfigParameterKind.InternalSystem), StringComparison.OrdinalIgnoreCase);
         }
 
         private List<ConfigToggleSummaryItem> CreateToggleSummaryItems(

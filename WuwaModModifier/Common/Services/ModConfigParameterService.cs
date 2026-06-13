@@ -90,7 +90,7 @@ namespace WuwaModModifier.Common
                 throw new InvalidOperationException($"未找到参数 {oldVariableName}。");
             }
 
-            if (!parameter.CanRename || parameter.Kind == ModConfigParameterKind.InternalSystem)
+            if (!parameter.CanRename || parameter.Kind == ModConfigParameterKind.System)
             {
                 throw new InvalidOperationException($"参数 {oldVariableName} 不允许安全重命名。");
             }

@@ -10,5 +10,7 @@ namespace WuwaModModifier.Common
         string DefaultWwmiPath { get; }
         string OtherFolderPath { get; }
         string StandardToggleTemplatePath { get; }
+        void SaveModPath(string path);
+        void SaveWwmiPath(string path);
     }
 }

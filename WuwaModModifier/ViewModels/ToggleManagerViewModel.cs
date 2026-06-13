@@ -265,7 +265,7 @@ namespace WuwaModModifier.ViewModels
 
         private static bool CanCreateToggleBindingForParameter(ConfigParameterSummaryItem parameter)
         {
-            return !parameter.KindText.Equals(nameof(ModConfigParameterKind.InternalSystem), StringComparison.OrdinalIgnoreCase);
+            return !parameter.KindText.Equals(nameof(ModConfigParameterKind.System), StringComparison.OrdinalIgnoreCase);
         }
     }
 }

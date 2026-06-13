@@ -96,7 +96,7 @@ namespace WuwaModModifier.Common
                     toggle.Targets.Count == 1 &&
                     parameterLookup.TryGetValue(toggle.Targets[0].VariableName, out var parameter) &&
                     parameter.CanRename &&
-                    parameter.Kind != ModConfigParameterKind.InternalSystem;
+                    parameter.Kind != ModConfigParameterKind.System;
             }
 
             result.Parameters = finalizedParameters;
@@ -243,7 +243,7 @@ namespace WuwaModModifier.Common
                 ToggleTypes = toggleTypes,
                 ReferencedInSections = referencedSections,
                 LinkedParameterNames = new List<string>(),
-                CanRename = boundKeySections.Count > 0 && kind != ModConfigParameterKind.InternalSystem && !parameter.Name.Contains('\\')
+                CanRename = boundKeySections.Count > 0 && kind != ModConfigParameterKind.System && !parameter.Name.Contains('\\')
             };
         }
 
@@ -251,7 +251,7 @@ namespace WuwaModModifier.Common
         {
             if (IsInternalSystemVariable(variableName))
             {
-                return ModConfigParameterKind.InternalSystem;
+                return ModConfigParameterKind.System;
             }
 
             return ModConfigParameterKind.Unknown;
@@ -673,7 +673,7 @@ namespace WuwaModModifier.Common
             {
                 if (parameterLookup.TryGetValue(candidateVariable, out var directParameter) &&
                     directParameter.BoundKeySections.Count > 0 &&
-                    directParameter.Kind != ModConfigParameterKind.InternalSystem)
+                    directParameter.Kind != ModConfigParameterKind.System)
                 {
                     controllingParameters.Add(candidateVariable);
                     continue;
@@ -683,7 +683,7 @@ namespace WuwaModModifier.Common
                 var resolvedParameters = resolvedVariables
                     .Where(variableName => parameterLookup.TryGetValue(variableName, out var parameter) &&
                         parameter.BoundKeySections.Count > 0 &&
-                        parameter.Kind != ModConfigParameterKind.InternalSystem)
+                        parameter.Kind != ModConfigParameterKind.System)
                     .ToList();
 
                 if (resolvedParameters.Count == 0)
@@ -1064,7 +1064,7 @@ namespace WuwaModModifier.Common
 
                 if (IsInternalSystemVariable(parameter.Name))
                 {
-                    parameter.Kind = ModConfigParameterKind.InternalSystem;
+                    parameter.Kind = ModConfigParameterKind.System;
                 }
                 else if (parameter.BoundKeySections.Count > 0 &&
                     parameter.ToggleTypes.Count > 0 &&

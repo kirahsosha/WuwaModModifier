@@ -5,7 +5,7 @@ namespace WuwaModModifier.Model
     public enum ModConfigParameterKind
     {
         Unknown = 0,
-        InternalSystem = 1,
+        System = 1,
         Toggle = 2,
         Texture = 3,
         Link = 4

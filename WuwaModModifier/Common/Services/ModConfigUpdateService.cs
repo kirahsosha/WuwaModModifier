@@ -339,7 +339,7 @@ namespace WuwaModModifier.Common
                 throw new InvalidOperationException($"未找到参数 {oldVariableName}。");
             }
 
-            if (!parameter.CanRename || parameter.Kind == ModConfigParameterKind.InternalSystem)
+            if (!parameter.CanRename || parameter.Kind == ModConfigParameterKind.System)
             {
                 throw new InvalidOperationException($"参数 {oldVariableName} 不允许安全重命名。");
             }
@@ -877,7 +877,7 @@ namespace WuwaModModifier.Common
 
             var parameter = parameters.FirstOrDefault(item =>
                 item.Name.Equals(target.VariableName, StringComparison.OrdinalIgnoreCase));
-            if (parameter == null || parameter.Kind == ModConfigParameterKind.InternalSystem)
+            if (parameter == null || parameter.Kind == ModConfigParameterKind.System)
             {
                 return false;
             }
@@ -1019,7 +1019,7 @@ namespace WuwaModModifier.Common
                 availableValues.Contains("1", StringComparer.OrdinalIgnoreCase);
 
             if (!parameter.IsDeclaredInConstants ||
-                parameter.Kind == ModConfigParameterKind.InternalSystem ||
+                parameter.Kind == ModConfigParameterKind.System ||
                 parameter.BoundKeySections.Count == 0 ||
                 !isBinaryToggle)
             {
